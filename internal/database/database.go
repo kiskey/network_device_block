@@ -1,5 +1,5 @@
-// Package database provides the SQLite persistence layer for the LAN
-// Internet Access Scheduler.
+// Package database provides the SQLite persistence layer.
+// v3.0.0 adds migrations for device intelligence fields.
 package database
 
 import (
@@ -18,16 +18,14 @@ type Logger interface {
     Debugf(format string, args ...interface{})
 }
 
-// Policy modes (v2.0.0)
 const (
     ModeGlobal        = "GLOBAL"
     ModeAllowAlways   = "ALLOW_ALWAYS"
     ModeBlockAlways   = "BLOCK_ALWAYS"
-    ModeScheduleBlock = "SCHEDULE_BLOCK" // Downtime: Block during schedule
-    ModeScheduleAllow = "SCHEDULE_ALLOW" // Whitelist: Allow during schedule
+    ModeScheduleBlock = "SCHEDULE_BLOCK"
+    ModeScheduleAllow = "SCHEDULE_ALLOW"
 )
 
-// Log categories
 const (
     LogCategoryScheduleApplied  = "schedule_applied"
     LogCategoryScheduleRemoved  = "schedule_removed"
@@ -39,13 +37,11 @@ const (
     LogCategoryAuth             = "auth"
 )
 
-// DB wraps the SQLite database connection.
 type DB struct {
     db     *sql.DB
     logger Logger
 }
 
-// New opens (or creates) the SQLite database.
 func New(path string, logger Logger) (*DB, error) {
     dsn := fmt.Sprintf(
         "file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)",
@@ -81,7 +77,6 @@ func (d *DB) Close() error { return d.db.Close() }
 func (d *DB) SQL() *sql.DB { return d.db }
 func (d *DB) Logger() Logger { return d.logger }
 
-// migrate creates or updates the database schema.
 func (d *DB) migrate() error {
     statements := []string{
         `CREATE TABLE IF NOT EXISTS devices (
@@ -91,7 +86,7 @@ func (d *DB) migrate() error {
             vendor        TEXT    NOT NULL DEFAULT '',
             current_ip    TEXT    NOT NULL DEFAULT '',
             online        INTEGER NOT NULL DEFAULT 0,
-            paused        INTEGER NOT NULL DEFAULT 0, -- v2.0.0
+            paused        INTEGER NOT NULL DEFAULT 0,
             first_seen    INTEGER NOT NULL,
             last_seen     INTEGER NOT NULL
         );`,
@@ -100,7 +95,7 @@ func (d *DB) migrate() error {
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             mac        TEXT    UNIQUE,
             mode       TEXT    NOT NULL DEFAULT 'ALLOW_ALWAYS',
-            enabled    INTEGER NOT NULL DEFAULT 0, -- v2.0.0: Global defaults to disabled (device rules take priority)
+            enabled    INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );`,
@@ -141,13 +136,17 @@ func (d *DB) migrate() error {
         `CREATE INDEX IF NOT EXISTS idx_devices_online ON devices(online);`,
         `CREATE INDEX IF NOT EXISTS idx_devices_last   ON devices(last_seen);`,
 
-        // v2.0.0: Migration for existing databases
-        `ALTER TABLE devices ADD COLUMN paused INTEGER NOT NULL DEFAULT 0;`,
+        // v3.0.0: Migrations for device intelligence fields
+        `ALTER TABLE devices ADD COLUMN device_type TEXT NOT NULL DEFAULT '';`,
+        `ALTER TABLE devices ADD COLUMN manufacturer TEXT NOT NULL DEFAULT '';`,
+        `ALTER TABLE devices ADD COLUMN os TEXT NOT NULL DEFAULT '';`,
+        `ALTER TABLE devices ADD COLUMN services TEXT NOT NULL DEFAULT '';`,
+        `ALTER TABLE devices ADD COLUMN discovery_sources TEXT NOT NULL DEFAULT '';`,
+        `ALTER TABLE devices ADD COLUMN confidence INTEGER NOT NULL DEFAULT 0;`,
     }
 
     for _, stmt := range statements {
         if _, err := d.db.Exec(stmt); err != nil {
-            // Ignore "duplicate column" errors during migration
             if !strings.Contains(err.Error(), "duplicate column name") {
                 return fmt.Errorf("exec [%s]: %w", firstLine(stmt), err)
             }
@@ -156,12 +155,9 @@ func (d *DB) migrate() error {
     return nil
 }
 
-// seedDefaults inserts default rows if the database is freshly created.
 func (d *DB) seedDefaults() error {
     now := time.Now().Unix()
 
-    // v2.0.0: Global policy defaults to ALLOW_ALWAYS but ENABLED=FALSE
-    // Meaning devices use their own rules by default.
     _, err := d.db.Exec(
         `INSERT OR IGNORE INTO policies (mac, mode, enabled, created_at, updated_at)
          VALUES (NULL, ?, 0, ?, ?)`,
@@ -184,6 +180,11 @@ func (d *DB) seedDefaults() error {
         "offline_threshold":  "90",
         "log_retention_days": "30",
         "dashboard_name":     "LAN Access Scheduler",
+        
+        // v3.0.0: Nmap settings
+        "nmap_enabled":       "true",
+        "nmap_interval":      "600", // 10 minutes
+        "nmap_subnet":        "192.168.1.0/24", // Default, user should change
     }
 
     for k, v := range defaults {
@@ -198,7 +199,6 @@ func (d *DB) seedDefaults() error {
     return nil
 }
 
-// NormalizeMAC converts a MAC address to lowercase with colon separators.
 func NormalizeMAC(mac string) string {
     mac = strings.TrimSpace(strings.ToLower(mac))
     mac = strings.ReplaceAll(mac, "-", ":")
