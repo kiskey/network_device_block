@@ -6,6 +6,7 @@ import (
 )
 
 // GetSchedulesByPolicy retrieves all schedule ranges for a given policy ID.
+// FIX: Initialize slice with make() so JSON returns [] instead of null.
 func (d *DB) GetSchedulesByPolicy(policyID int64) ([]Schedule, error) {
     rows, err := d.db.Query(`
         SELECT id, policy_id, day_of_week, start_time, end_time, enabled, created_at, updated_at
@@ -16,7 +17,7 @@ func (d *DB) GetSchedulesByPolicy(policyID int64) ([]Schedule, error) {
     }
     defer rows.Close()
 
-    var schedules []Schedule
+    schedules := make([]Schedule, 0)
     for rows.Next() {
         var s Schedule
         var enabledInt int
