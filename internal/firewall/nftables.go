@@ -1,10 +1,8 @@
 // Package firewall manages the application's dedicated nftables table.
-// It executes the native `nft` binary to ensure perfect compatibility
-// with all nftables features (like netdev device binding) without
-// relying on third-party Go struct mappings that often break.
+// It executes the native `nft` binary to ensure perfect compatibility.
 //
-// CRITICAL: This package ONLY interacts with `table netdev lancontrol`.
-// It never touches inet filter, inet nat, VPN rules, routing, or NAT.
+// v2.0.1: Modified drop rule to only block Internet-bound traffic.
+// Local LAN traffic (DNS, NAS, Inter-VLAN) is allowed to pass to routing.
 package firewall
 
 import (
@@ -43,7 +41,6 @@ func New(iface string, logger Logger) (*Firewall, error) {
         return nil, fmt.Errorf("interface name cannot be empty")
     }
 
-    // Ensure nft binary exists
     if _, err := exec.LookPath("nft"); err != nil {
         return nil, fmt.Errorf("nftables binary 'nft' not found in PATH: %w", err)
     }
@@ -69,9 +66,7 @@ func (fw *Firewall) runNft(args ...string) (string, error) {
     return out.String(), nil
 }
 
-// VerifyOrCreate ensures the lancontrol table, sets, chain, and base rules
-// exist. If they exist, they are left untouched. If missing, they are created.
-// This is idempotent and safe to run on every startup.
+// VerifyOrCreate ensures the lancontrol table, sets, chain, and base rules exist.
 func (fw *Firewall) VerifyOrCreate() error {
     fw.mu.Lock()
     defer fw.mu.Unlock()
@@ -112,6 +107,7 @@ func (fw *Firewall) VerifyOrCreate() error {
     }
 
     // 4. Verify/Create Rules
+    // We look for specific markers in the output to ensure our exact rules exist.
     out, _ = fw.runNft("list", "chain", "netdev", TableName, ChainName)
 
     if !strings.Contains(out, "@override_allow accept") {
@@ -120,9 +116,19 @@ func (fw *Firewall) VerifyOrCreate() error {
         }
     }
 
-    if !strings.Contains(out, "@blocked_macs drop") {
-        if _, err := fw.runNft("add", "rule", "netdev", TableName, ChainName, "ether", "saddr", "@blocked_macs", "drop"); err != nil {
-            return fmt.Errorf("add block rule: %v", err)
+    // v2.0.1 Fix: Only drop Internet-bound traffic.
+    // This allows the device to talk to the gateway (DNS) and other LAN devices.
+    // It checks if the destination IP is NOT in the private RFC1918 ranges.
+    if !strings.Contains(out, "drop") {
+        fw.logger.Infof("Adding LAN-aware block rule...")
+        ruleArgs := []string{
+            "add", "rule", "netdev", TableName, ChainName,
+            "ether", "saddr", "@blocked_macs",
+            "ip", "daddr", "!=", "{ 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 }",
+            "drop",
+        }
+        if _, err := fw.runNft(ruleArgs...); err != nil {
+            return fmt.Errorf("add lan-aware block rule: %v", err)
         }
     }
 
