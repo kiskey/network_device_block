@@ -6,7 +6,416 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>LAN Access Scheduler</title>
-    <link rel="stylesheet" href="/styles.css">
+    <style>
+        :root {
+            --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            --bg-color: #f2f2f7;
+            --bg-color-elevated: #ffffff;
+            --text-primary: #1c1c1e;
+            --text-secondary: #8e8e93;
+            --text-tertiary: #c7c7cc;
+            --separator: rgba(60, 60, 67, 0.12);
+            --accent-blue: #007aff;
+            --accent-green: #34c759;
+            --accent-red: #ff3b30;
+            --accent-orange: #ff9500;
+            --fill-tertiary: rgba(118, 118, 128, 0.12);
+            --radius-card: 12px;
+            --radius-modal: 14px;
+            --shadow-modal: 0 25px 50px -12px rgba(0,0,0,0.25);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #000000;
+                --bg-color-elevated: #1c1c1e;
+                --text-primary: #ffffff;
+                --text-secondary: #8e8e93;
+                --text-tertiary: #48484a;
+                --separator: rgba(84, 84, 88, 0.6);
+                --fill-tertiary: rgba(118, 118, 128, 0.24);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            transition: background-color 0.3s ease;
+            overflow-x: hidden;
+        }
+
+        .hidden { display: none !important; }
+        button { font-family: var(--font-family); cursor: pointer; }
+        
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        /* Authentication View                                               */
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .auth-container {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: var(--bg-color-elevated);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+
+        .auth-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--fill-tertiary);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+        }
+
+        h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+        p { font-size: 14px; line-height: 1.4; color: var(--text-secondary); margin-bottom: 24px; }
+
+        input[type="password"], input[type="text"], select {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-color);
+            border: 1px solid var(--separator);
+            border-radius: 10px;
+            font-size: 16px;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            margin-bottom: 16px;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+        }
+
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        /* Buttons                                                           */
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .btn-primary {
+            width: 100%;
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+
+        .btn-secondary {
+            background-color: var(--fill-tertiary);
+            color: var(--text-primary);
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .btn-secondary:active { opacity: 0.6; }
+
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        /* App Layout (Responsive)                                           */
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Desktop Sidebar */
+        .sidebar {
+            width: 260px;
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-right: 1px solid var(--separator);
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 100;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .sidebar { background: rgba(28,28,30,0.6); }
+        }
+
+        .brand {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .brand-icon { color: var(--accent-blue); }
+
+        .nav-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 15px;
+            font-weight: 500;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .nav-item:hover { background: var(--fill-tertiary); }
+        .nav-item.active { background: var(--accent-blue); color: white; }
+        .nav-item.active svg { stroke: white; }
+
+        .sidebar-footer {
+            margin-top: auto;
+        }
+
+        /* Mobile Top Bar */
+        .mobile-header {
+            display: none;
+            padding: 16px;
+            text-align: center;
+            font-size: 17px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--separator);
+            background: var(--bg-color-elevated);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        /* Main Content */
+        .content-area {
+            flex: 1;
+            margin-left: 260px; /* Offset for sidebar */
+            padding: 40px;
+            max-width: 100%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Mobile Bottom Tab Bar */
+        .tabbar {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-top: 1px solid var(--separator);
+            padding: 8px 0 20px 0; /* Safe area */
+            justify-content: space-around;
+            z-index: 100;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .tabbar { background: rgba(28,28,30,0.8); }
+        }
+
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 10px;
+            font-weight: 500;
+        }
+        .tab-item.active { color: var(--accent-blue); }
+        .tab-item.active svg { stroke: var(--accent-blue); }
+
+        /* Responsive Breakpoint */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .mobile-header { display: block; }
+            .content-area { margin-left: 0; padding: 20px 16px 80px 16px; }
+            .tabbar { display: flex; }
+        }
+
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        /* UI Components                                                     */
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .list-header {
+            text-transform: uppercase;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 0 16px 8px 16px;
+            letter-spacing: 0.02em;
+        }
+
+        .card-group {
+            background: var(--bg-color-elevated);
+            border-radius: var(--radius-card);
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .card-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 0.5px solid var(--separator);
+            transition: background-color 0.15s;
+        }
+        .card-item:last-child { border-bottom: none; }
+        .card-item:active { background-color: var(--fill-tertiary); }
+
+        .item-info { flex: 1; min-width: 0; }
+        .item-title { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+        .item-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .item-chevron { color: var(--text-tertiary); margin-left: 8px; }
+
+        /* Stat Cards */
+        .dash-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-color-elevated);
+            padding: 20px;
+            border-radius: var(--radius-card);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .stat-label { color: var(--text-secondary); font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-online { background-color: var(--accent-green); }
+        .status-offline { background-color: var(--text-tertiary); }
+        .status-blocked { background-color: var(--accent-red); }
+
+        /* iOS Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 51px;
+            height: 31px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--text-tertiary);
+            transition: background-color 0.3s ease;
+            border-radius: 31px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 27px; width: 27px;
+            left: 2px; bottom: 2px;
+            background-color: white;
+            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider { background-color: var(--accent-green); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Bottom Sheet Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            z-index: 200;
+            animation: fadeInBg 0.2s ease;
+        }
+        @keyframes fadeInBg { from { opacity: 0; } to { opacity: 1; } }
+
+        .modal-card {
+            background: var(--bg-color-elevated);
+            border-radius: 16px 16px 0 0;
+            width: 100%;
+            max-width: 480px;
+            max-height: 85vh;
+            padding: 16px;
+            padding-bottom: 40px;
+            transform: translateY(100%);
+            animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+        }
+
+        @media (min-width: 768px) {
+            .modal-overlay { align-items: center; padding: 20px; }
+            .modal-card {
+                border-radius: 14px;
+                animation: scaleIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+            }
+        }
+
+        @keyframes slideUp { to { transform: translateY(0); } }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-top: 8px; }
+        .sheet-close { background: var(--fill-tertiary); color: var(--text-secondary); width: 30px; height: 30px; border-radius: 50%; border: none; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+
+        .form-group { margin-bottom: 24px; }
+        .form-label { display: block; text-transform: uppercase; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; padding-left: 4px; }
+
+        .schedule-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+        .schedule-row select, .schedule-row input { margin-bottom: 0; flex: 1; padding: 10px; }
+        
+        .loader { text-align: center; padding: 40px; color: var(--text-secondary); font-weight: 500; }
+        .error-text { color: var(--accent-red); font-size: 14px; margin-top: 16px; }
+    </style>
 </head>
 <body>
 
@@ -16,9 +425,7 @@
             <div class="auth-icon">🔒</div>
             <h1>Network Access</h1>
             <p id="auth-subtitle">Enter your password to manage network access.</p>
-            <div class="input-group">
-                <input type="password" id="password-input" placeholder="Password" autocomplete="current-password" autocapitalize="none">
-            </div>
+            <input type="password" id="password-input" placeholder="Password" autocomplete="current-password">
             <button id="login-btn" class="btn-primary">Unlock</button>
             <div id="auth-error" class="error-text hidden"></div>
         </div>
@@ -26,30 +433,384 @@
 
     <!-- Main App View -->
     <div id="app-view" class="hidden">
-        <nav class="top-nav">
-            <div class="nav-logo">Scheduler</div>
-            <div class="segmented-control">
-                <button class="seg-item active" data-view="dashboard">Dashboard</button>
-                <button class="seg-item" data-view="devices">Devices</button>
-                <button class="seg-item" data-view="schedule">Schedule</button>
-            </div>
-            <button id="logout-btn" class="nav-action">Logout</button>
-        </nav>
+        <div class="app-container">
+            <!-- Desktop Sidebar -->
+            <aside class="sidebar">
+                <div class="brand">
+                    <span class="brand-icon">🌐</span> Scheduler
+                </div>
+                <nav class="nav-list">
+                    <button class="nav-item active" data-view="dashboard">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        Dashboard
+                    </button>
+                    <button class="nav-item" data-view="devices">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        Devices
+                    </button>
+                    <button class="nav-item" data-view="schedule">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        Schedule
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <button id="logout-btn" class="nav-item" style="color: var(--accent-red);">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        Logout
+                    </button>
+                </div>
+            </aside>
 
-        <main id="main-content" class="content-area">
-            <!-- Content injected by JS -->
-        </main>
+            <!-- Mobile Header -->
+            <div class="mobile-header">Scheduler</div>
+
+            <!-- Main Content -->
+            <main id="main-content" class="content-area"></main>
+        </div>
+
+        <!-- Mobile Tab Bar -->
+        <nav class="tabbar">
+            <button class="tab-item active" data-view="dashboard">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Home
+            </button>
+            <button class="tab-item" data-view="devices">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line></svg>
+                Devices
+            </button>
+            <button class="tab-item" data-view="schedule">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Schedule
+            </button>
+        </nav>
     </div>
 
-    <!-- Bottom Sheet Modal (iOS Style) -->
+    <!-- Bottom Sheet Modal -->
     <div id="modal-overlay" class="modal-overlay hidden">
-        <div class="sheet-card">
-            <div class="sheet-grabber"></div>
-            <button class="sheet-close" onclick="closeModal()">&times;</button>
-            <div id="modal-content" class="sheet-content"></div>
+        <div class="modal-card">
+            <div class="sheet-header">
+                <h2 id="modal-title">Details</h2>
+                <button class="sheet-close" onclick="closeModal()">✕</button>
+            </div>
+            <div id="modal-content"></div>
         </div>
     </div>
 
-    <script src="/app.js"></script>
+    <script>
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // State & Helpers
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let currentView = 'dashboard';
+        let authStatus = { auth_enabled: false, password_set: false, authenticated: false };
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        async function api(method, path, body) {
+            const headers = { 'Content-Type': 'application/json' };
+            const csrf = getCookie('csrf_token');
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+
+            const res = await fetch(path, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : undefined
+            });
+
+            if (res.status === 401) {
+                showAuthView();
+                throw new Error('Unauthorized');
+            }
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({ error: 'Request failed' }));
+                throw new Error(errData.error || 'Request failed');
+            }
+            return res.status === 204 ? null : res.json();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Auth Logic
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        async function checkAuth() {
+            try { authStatus = await api('GET', '/api/auth/status'); } 
+            catch (e) { authStatus = { auth_enabled: true, authenticated: false }; }
+
+            if (authStatus.auth_enabled && !authStatus.authenticated) showAuthView();
+            else showAppView();
+        }
+
+        function showAuthView() {
+            document.getElementById('auth-view').classList.remove('hidden');
+            document.getElementById('app-view').classList.add('hidden');
+            
+            const subtitle = document.getElementById('auth-subtitle');
+            const btn = document.getElementById('login-btn');
+            if (!authStatus.password_set) {
+                subtitle.textContent = 'Welcome! Create a password to secure your gateway.';
+                btn.textContent = 'Set Password & Unlock';
+            } else {
+                subtitle.textContent = 'Enter your password to manage network access.';
+                btn.textContent = 'Unlock';
+            }
+        }
+
+        function showAppView() {
+            document.getElementById('auth-view').classList.add('hidden');
+            document.getElementById('app-view').classList.remove('hidden');
+            renderView();
+        }
+
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const password = document.getElementById('password-input').value;
+            const errEl = document.getElementById('auth-error');
+            errEl.classList.add('hidden');
+            try {
+                await api('POST', '/api/login', { password });
+                await checkAuth();
+            } catch (err) {
+                errEl.textContent = err.message;
+                errEl.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            try { await api('POST', '/api/logout'); await checkAuth(); } catch (e) {}
+        });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Routing & Rendering
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function setupNav() {
+            const navItems = document.querySelectorAll('.nav-item[data-view], .tab-item[data-view]');
+            navItems.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.nav-item[data-view], .tab-item[data-view]').forEach(b => b.classList.remove('active'));
+                    // Highlight both desktop and mobile versions if they exist
+                    document.querySelectorAll(`[data-view="${btn.dataset.view}"]`).forEach(b => b.classList.add('active'));
+                    currentView = btn.dataset.view;
+                    renderView();
+                });
+            });
+        }
+        setupNav();
+
+        async function renderView() {
+            const main = document.getElementById('main-content');
+            main.innerHTML = `<div class="loader">Loading...</div>`;
+            try {
+                if (currentView === 'dashboard') await renderDashboard(main);
+                else if (currentView === 'devices') await renderDevices(main);
+                else if (currentView === 'schedule') await renderSchedule(main);
+            } catch (err) {
+                main.innerHTML = `<div class="error-text">Error: ${err.message}</div>`;
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Dashboard View
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        async function renderDashboard(container) {
+            const data = await api('GET', '/api/dashboard');
+            container.innerHTML = `
+                <div class="dash-grid">
+                    <div class="stat-card"><div class="stat-label">Gateway</div><div class="stat-value">${data.gateway_status}</div></div>
+                    <div class="stat-card"><div class="stat-label">VPN</div><div class="stat-value">${data.vpn_status}</div></div>
+                    <div class="stat-card"><div class="stat-label">Internet</div><div class="stat-value">${data.internet_status}</div></div>
+                </div>
+                <div class="dash-grid">
+                    <div class="stat-card"><div class="stat-label">Online</div><div class="stat-value"><span class="status-dot status-online"></span>${data.online_devices}</div></div>
+                    <div class="stat-card"><div class="stat-label">Blocked</div><div class="stat-value"><span class="status-dot status-blocked"></span>${data.blocked_devices}</div></div>
+                    <div class="stat-card"><div class="stat-label">Discovered</div><div class="stat-value">${data.device_count}</div></div>
+                </div>
+                <div class="list-header">Next Scheduled Event</div>
+                <div class="card-group">
+                    <div class="card-item">
+                        <div class="item-info">
+                            <div class="item-title">${data.next_schedule ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][data.next_schedule.day_of_week] : 'No Schedules'}</div>
+                            <div class="item-subtitle">${data.next_schedule ? `${data.next_schedule.start_time} to ${data.next_schedule.end_time}` : 'Global internet is always on or off'}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Devices View
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        async function renderDevices(container) {
+            const devices = await api('GET', '/api/devices');
+            let html = `<div class="list-header">Network Devices</div><div class="card-group">`;
+            if (devices.length === 0) {
+                html += `<div class="card-item"><div class="item-info"><div class="item-title">No devices discovered</div></div></div>`;
+            } else {
+                devices.forEach(d => {
+                    const isBlocked = d.policy && d.policy.mode === 'BLOCK_ALWAYS';
+                    const dotClass = d.online ? 'status-online' : 'status-offline';
+                    html += `
+                        <div class="card-item" onclick="openDeviceModal('${d.mac}')">
+                            <div class="item-info">
+                                <div class="item-title">
+                                    <span class="status-dot ${dotClass}"></span>
+                                    ${d.friendly_name || d.hostname || 'Unknown Device'}
+                                </div>
+                                <div class="item-subtitle">${d.current_ip || 'No IP'} · ${d.mac}</div>
+                            </div>
+                            <div class="toggle-switch" onclick="event.stopPropagation()">
+                                <input type="checkbox" id="toggle-${d.mac}" ${!isBlocked ? 'checked' : ''} onchange="toggleDevice('${d.mac}', this.checked)">
+                                <span class="slider"></span>
+                            </div>
+                            <div class="item-chevron">›</div>
+                        </div>
+                    `;
+                });
+            }
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        async function toggleDevice(mac, allow) {
+            try { await api('POST', `/api/devices/${mac}/toggle`); } 
+            catch (err) { alert('Failed: ' + err.message); await renderView(); }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Device Modal (Bottom Sheet)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        async function openDeviceModal(mac) {
+            const modal = document.getElementById('modal-overlay');
+            const content = document.getElementById('modal-content');
+            const title = document.getElementById('modal-title');
+            modal.classList.remove('hidden');
+            title.textContent = "Device Details";
+            content.innerHTML = `<div class="loader">Loading...</div>`;
+
+            try {
+                const dev = await api('GET', `/api/devices/${mac}`);
+                const policy = dev.policy || { mode: 'GLOBAL', enabled: true };
+                
+                content.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Friendly Name</label>
+                        <input type="text" id="dev-friendly" value="${dev.friendly_name || ''}" placeholder="Add a custom name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">MAC Address</label>
+                        <input type="text" value="${dev.mac}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vendor</label>
+                        <input type="text" value="${dev.vendor || 'Unknown'}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Policy Mode</label>
+                        <select id="dev-mode">
+                            <option value="GLOBAL" ${policy.mode==='GLOBAL'?'selected':''}>Use Global Policy</option>
+                            <option value="ALLOW_ALWAYS" ${policy.mode==='ALLOW_ALWAYS'?'selected':''}>Allow Always</option>
+                            <option value="BLOCK_ALWAYS" ${policy.mode==='BLOCK_ALWAYS'?'selected':''}>Block Always</option>
+                            <option value="SCHEDULE" ${policy.mode==='SCHEDULE'?'selected':''}>Custom Schedule</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="saveDeviceChanges('${dev.mac}')">Save Changes</button>
+                `;
+            } catch (err) {
+                content.innerHTML = `<div class="error-text">${err.message}</div>`;
+            }
+        }
+
+        async function saveDeviceChanges(mac) {
+            const friendly = document.getElementById('dev-friendly').value;
+            const mode = document.getElementById('dev-mode').value;
+            try {
+                if (friendly !== '') await api('PUT', `/api/devices/${mac}`, { friendly_name: friendly });
+                await api('PUT', `/api/policies/${mac}`, { mode: mode, enabled: true });
+                closeModal();
+                await renderView();
+            } catch (err) { alert('Save failed: ' + err.message); }
+        }
+
+        function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+        document.getElementById('modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Schedule View (Global)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        async function renderSchedule(container) {
+            const policy = await api('GET', '/api/policies/global');
+            const schedules = await api('GET', '/api/schedules/global');
+            
+            container.innerHTML = `
+                <div class="list-header">Global Internet Policy</div>
+                <div class="card-group">
+                    <div class="card-item" style="cursor: default;">
+                        <div class="item-info"><div class="item-title">Default Mode</div></div>
+                        <select id="global-mode" style="width: auto; margin-bottom: 0; border: none; background: transparent; color: var(--accent-blue); font-weight: 600;">
+                            <option value="ALLOW_ALWAYS" ${policy.mode==='ALLOW_ALWAYS'?'selected':''}>Allow Always</option>
+                            <option value="BLOCK_ALWAYS" ${policy.mode==='BLOCK_ALWAYS'?'selected':''}>Block Always</option>
+                            <option value="SCHEDULE" ${policy.mode==='SCHEDULE'?'selected':''}>Scheduled</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn-secondary" style="margin-bottom: 32px;" onclick="saveGlobalMode()">Update Global Mode</button>
+                
+                <div class="list-header">Weekly Schedule</div>
+                <div class="card-group" style="padding: 16px;">
+                    <div id="schedules-list"></div>
+                    <button class="btn-secondary" style="width: 100%; margin-top: 8px;" onclick="addScheduleRow()">+ Add Time Range</button>
+                </div>
+                <button class="btn-primary" style="margin-top: 24px;" onclick="saveSchedules()">Save Schedule</button>
+            `;
+            
+            const list = document.getElementById('schedules-list');
+            if (schedules.length === 0) addScheduleRow(); 
+            else schedules.forEach(s => addScheduleRow(s));
+        }
+
+        function addScheduleRow(s = null) {
+            const list = document.getElementById('schedules-list');
+            const div = document.createElement('div');
+            div.className = 'schedule-row';
+            div.innerHTML = `
+                <select class="sched-day">
+                    ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d,i) => 
+                        `<option value="${i}" ${s && s.day_of_week===i?'selected':''}>${d}</option>`
+                    ).join('')}
+                </select>
+                <input type="time" class="sched-start" value="${s ? s.start_time : '08:00'}">
+                <input type="time" class="sched-end" value="${s ? s.end_time : '17:00'}">
+                <button class="btn-secondary" onclick="this.parentNode.remove()" style="padding: 10px 12px;">✕</button>
+            `;
+            list.appendChild(div);
+        }
+
+        async function saveGlobalMode() {
+            const mode = document.getElementById('global-mode').value;
+            try { await api('PUT', '/api/policies/global', { mode: mode, enabled: true }); } 
+            catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function saveSchedules() {
+            const rows = document.querySelectorAll('.schedule-row');
+            try {
+                const existing = await api('GET', '/api/schedules/global');
+                for (const s of existing) { await api('DELETE', `/api/schedules/${s.id}`); }
+                
+                for (const row of rows) {
+                    const day = row.querySelector('.sched-day').value;
+                    const start = row.querySelector('.sched-start').value;
+                    const end = row.querySelector('.sched-end').value;
+                    if (start && end) {
+                        await api('POST', '/api/schedules/global', { day_of_week: parseInt(day), start_time: start, end_time: end, enabled: true });
+                    }
+                }
+                await renderView();
+            } catch (err) { alert('Failed: ' + err.message); }
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', checkAuth);
+    </script>
 </body>
 </html>
