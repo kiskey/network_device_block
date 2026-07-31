@@ -10,7 +10,6 @@ import (
 func (d *DB) InsertLog(category, message, mac, details string) error {
     now := time.Now().Unix()
     
-    // Normalize MAC if provided, but allow empty string
     if mac != "" {
         mac = NormalizeMAC(mac)
     }
@@ -25,7 +24,8 @@ func (d *DB) InsertLog(category, message, mac, details string) error {
     return nil
 }
 
-// GetLogs retrieves recent log entries, optionally filtered by MAC address.
+// GetLogs retrieves recent log entries.
+// FIX: Initialize slice with make() so JSON returns [] instead of null.
 func (d *DB) GetLogs(limit int, mac string) ([]LogEntry, error) {
     if limit <= 0 {
         limit = 100
@@ -56,7 +56,7 @@ func (d *DB) GetLogs(limit int, mac string) ([]LogEntry, error) {
     }
     defer rows.Close()
 
-    var logs []LogEntry
+    logs := make([]LogEntry, 0)
     for rows.Next() {
         var l LogEntry
         if err := rows.Scan(&l.ID, &l.Timestamp, &l.Category, &l.Message, &l.MAC, &l.Details); err != nil {
@@ -67,8 +67,7 @@ func (d *DB) GetLogs(limit int, mac string) ([]LogEntry, error) {
     return logs, nil
 }
 
-// DeleteLogsBefore deletes logs older than the given Unix timestamp and
-// returns the number of deleted rows.
+// DeleteLogsBefore deletes logs older than the given Unix timestamp.
 func (d *DB) DeleteLogsBefore(cutoff int64) (int64, error) {
     res, err := d.db.Exec(`DELETE FROM logs WHERE timestamp < ?`, cutoff)
     if err != nil {
