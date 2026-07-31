@@ -1,9 +1,9 @@
 name: Build and Release
 
 on:
-#  push:
-#    branches:
-#      - main
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -52,6 +52,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # FIX: The release job also needs to checkout the code 
+      # so the 'gh' CLI has access to the git repository context.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
