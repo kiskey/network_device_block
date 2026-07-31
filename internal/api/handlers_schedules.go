@@ -52,6 +52,70 @@ func (s *Server) handleAddGlobalSchedule(w http.ResponseWriter, r *http.Request)
     writeJSON(w, http.StatusCreated, sched)
 }
 
+// FIX: handleGetDeviceSchedules processes GET /api/policies/{mac}/schedules
+func (s *Server) handleGetDeviceSchedules(w http.ResponseWriter, r *http.Request) {
+    mac := normalizeMAC(r.PathValue("mac"))
+    if mac == "" {
+        writeError(w, http.StatusBadRequest, "Invalid MAC address")
+        return
+    }
+
+    p, err := s.db.GetDevicePolicy(mac)
+    if err != nil {
+        writeError(w, http.StatusInternalServerError, "Failed to fetch device policy")
+        return
+    }
+    if p == nil {
+        writeJSON(w, http.StatusOK, []database.Schedule{}) // Return empty array instead of null
+        return
+    }
+
+    schedules, err := s.db.GetSchedulesByPolicy(p.ID)
+    if err != nil {
+        writeJSON(w, http.StatusOK, []database.Schedule{})
+        return
+    }
+    writeJSON(w, http.StatusOK, schedules)
+}
+
+// FIX: handleAddDeviceSchedule processes POST /api/policies/{mac}/schedules
+func (s *Server) handleAddDeviceSchedule(w http.ResponseWriter, r *http.Request) {
+    mac := normalizeMAC(r.PathValue("mac"))
+    if mac == "" {
+        writeError(w, http.StatusBadRequest, "Invalid MAC address")
+        return
+    }
+
+    var sched database.Schedule
+    if err := json.NewDecoder(r.Body).Decode(&sched); err != nil {
+        writeError(w, http.StatusBadRequest, "Invalid request body")
+        return
+    }
+
+    p, err := s.db.GetDevicePolicy(mac)
+    if err != nil || p == nil {
+        writeError(w, http.StatusNotFound, "Device policy not found. Set mode to SCHEDULE first.")
+        return
+    }
+
+    if p.Mode != database.ModeSchedule {
+        writeError(w, http.StatusBadRequest, "Device policy is not in SCHEDULE mode")
+        return
+    }
+
+    id, err := s.db.AddSchedule(p.ID, sched.DayOfWeek, sched.StartTime, sched.EndTime, sched.Enabled)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, err.Error())
+        return
+    }
+
+    s.applyPoliciesImmediately()
+    s.db.InsertLog(database.LogCategoryScheduleApplied, "Added device schedule", mac, "")
+
+    sched.ID = id
+    writeJSON(w, http.StatusCreated, sched)
+}
+
 // handleUpdateSchedule processes PUT /api/schedules/{id}
 func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
     idStr := r.PathValue("id")
