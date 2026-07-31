@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>LAN Access Scheduler</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+    <!-- Auth View -->
+    <div id="auth-view" class="auth-container hidden">
+        <div class="auth-card">
+            <div class="auth-icon">🔒</div>
+            <h1>Network Access</h1>
+            <p id="auth-subtitle">Enter your password to manage network access.</p>
+            <div class="input-group">
+                <input type="password" id="password-input" placeholder="Password" autocomplete="current-password" autocapitalize="none">
+            </div>
+            <button id="login-btn" class="btn-primary">Unlock</button>
+            <div id="auth-error" class="error-text hidden"></div>
+        </div>
+    </div>
+
+    <!-- Main App View -->
+    <div id="app-view" class="hidden">
+        <nav class="top-nav">
+            <div class="nav-logo">Scheduler</div>
+            <div class="segmented-control">
+                <button class="seg-item active" data-view="dashboard">Dashboard</button>
+                <button class="seg-item" data-view="devices">Devices</button>
+                <button class="seg-item" data-view="schedule">Schedule</button>
+            </div>
+            <button id="logout-btn" class="nav-action">Logout</button>
+        </nav>
+
+        <main id="main-content" class="content-area">
+            <!-- Content injected by JS -->
+        </main>
+    </div>
+
+    <!-- Bottom Sheet Modal (iOS Style) -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="sheet-card">
+            <div class="sheet-grabber"></div>
+            <button class="sheet-close" onclick="closeModal()">&times;</button>
+            <div id="modal-content" class="sheet-content"></div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
