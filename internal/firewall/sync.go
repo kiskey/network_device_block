@@ -15,7 +15,6 @@ func (fw *Firewall) getCurrentMACs(setName string) (map[string]struct{}, error) 
 
     out, err := fw.runNft("list", "set", "netdev", TableName, setName)
     if err != nil {
-        // If the set doesn't exist or is empty, return empty map
         return make(map[string]struct{}), nil
     }
 
@@ -39,7 +38,6 @@ func (fw *Firewall) GetOverrideMACs() (map[string]struct{}, error) {
 
 // syncSet takes the desired list of MACs, diffs it against the current nftables
 // set, and applies only the additions and deletions.
-// It NEVER flushes or recreates the set.
 func (fw *Firewall) syncSet(setName string, desired []string) error {
     current, err := fw.getCurrentMACs(setName)
     if err != nil {
@@ -52,10 +50,17 @@ func (fw *Firewall) syncSet(setName string, desired []string) error {
 
     for _, macStr := range desired {
         macStr = strings.ToLower(macStr)
+        
+        // v2.0.2: Filter out broadcast/empty MACs
+        if macStr == "ff:ff:ff:ff:ff:ff" || macStr == "00:00:00:00:00:00" {
+            continue
+        }
+        
         if !macRegex.MatchString(macStr) {
             fw.logger.Warnf("Skipping invalid MAC format %s", macStr)
             continue
         }
+        
         desiredMap[macStr] = struct{}{}
         if _, exists := current[macStr]; !exists {
             toAdd = append(toAdd, macStr)
@@ -63,6 +68,12 @@ func (fw *Firewall) syncSet(setName string, desired []string) error {
     }
 
     for macStr := range current {
+        // v2.0.2: Clean up broadcast MACs if they got stuck in the set previously
+        if macStr == "ff:ff:ff:ff:ff:ff" || macStr == "00:00:00:00:00:00" {
+            toDelete = append(toDelete, macStr)
+            continue
+        }
+        
         if _, exists := desiredMap[macStr]; !exists {
             toDelete = append(toDelete, macStr)
         }
