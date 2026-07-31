@@ -1,8 +1,5 @@
 // Package database provides the SQLite persistence layer for the LAN
-// Internet Access Scheduler. It manages five tables: devices, policies,
-// schedules, logs, and settings. All time values are stored as Unix
-// timestamps (seconds). MAC addresses are stored as lowercase strings
-// with colon separators (e.g. "aa:bb:cc:dd:ee:ff").
+// Internet Access Scheduler.
 package database
 
 import (
@@ -11,10 +8,9 @@ import (
     "strings"
     "time"
 
-    _ "modernc.org/sqlite" // pure-Go SQLite driver (no CGo)
+    _ "modernc.org/sqlite"
 )
 
-// Logger is the minimal logging interface required by the database package.
 type Logger interface {
     Infof(format string, args ...interface{})
     Errorf(format string, args ...interface{})
@@ -22,12 +18,13 @@ type Logger interface {
     Debugf(format string, args ...interface{})
 }
 
-// Policy modes
+// Policy modes (v2.0.0)
 const (
-    ModeGlobal      = "GLOBAL"
-    ModeAllowAlways = "ALLOW_ALWAYS"
-    ModeBlockAlways = "BLOCK_ALWAYS"
-    ModeSchedule    = "SCHEDULE"
+    ModeGlobal        = "GLOBAL"
+    ModeAllowAlways   = "ALLOW_ALWAYS"
+    ModeBlockAlways   = "BLOCK_ALWAYS"
+    ModeScheduleBlock = "SCHEDULE_BLOCK" // Downtime: Block during schedule
+    ModeScheduleAllow = "SCHEDULE_ALLOW" // Whitelist: Allow during schedule
 )
 
 // Log categories
@@ -42,13 +39,13 @@ const (
     LogCategoryAuth             = "auth"
 )
 
-// DB wraps the SQLite database connection and provides access to all persistence operations.
+// DB wraps the SQLite database connection.
 type DB struct {
     db     *sql.DB
     logger Logger
 }
 
-// New opens (or creates) the SQLite database at the given path, runs schema migrations, and seeds default rows.
+// New opens (or creates) the SQLite database.
 func New(path string, logger Logger) (*DB, error) {
     dsn := fmt.Sprintf(
         "file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)",
@@ -80,22 +77,11 @@ func New(path string, logger Logger) (*DB, error) {
     return d, nil
 }
 
-// Close closes the underlying database connection.
-func (d *DB) Close() error {
-    return d.db.Close()
-}
+func (d *DB) Close() error { return d.db.Close() }
+func (d *DB) SQL() *sql.DB { return d.db }
+func (d *DB) Logger() Logger { return d.logger }
 
-// SQL returns the raw *sql.DB for direct query access.
-func (d *DB) SQL() *sql.DB {
-    return d.db
-}
-
-// Logger returns the logger associated with this database instance.
-func (d *DB) Logger() Logger {
-    return d.logger
-}
-
-// migrate creates or updates the database schema to the latest version.
+// migrate creates or updates the database schema.
 func (d *DB) migrate() error {
     statements := []string{
         `CREATE TABLE IF NOT EXISTS devices (
@@ -105,6 +91,7 @@ func (d *DB) migrate() error {
             vendor        TEXT    NOT NULL DEFAULT '',
             current_ip    TEXT    NOT NULL DEFAULT '',
             online        INTEGER NOT NULL DEFAULT 0,
+            paused        INTEGER NOT NULL DEFAULT 0, -- v2.0.0
             first_seen    INTEGER NOT NULL,
             last_seen     INTEGER NOT NULL
         );`,
@@ -113,7 +100,7 @@ func (d *DB) migrate() error {
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             mac        TEXT    UNIQUE,
             mode       TEXT    NOT NULL DEFAULT 'ALLOW_ALWAYS',
-            enabled    INTEGER NOT NULL DEFAULT 1,
+            enabled    INTEGER NOT NULL DEFAULT 0, -- v2.0.0: Global defaults to disabled (device rules take priority)
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );`,
@@ -145,6 +132,7 @@ func (d *DB) migrate() error {
             updated_at INTEGER NOT NULL
         );`,
 
+        // Indexes
         `CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);`,
         `CREATE INDEX IF NOT EXISTS idx_logs_mac       ON logs(mac);`,
         `CREATE INDEX IF NOT EXISTS idx_logs_category  ON logs(category);`,
@@ -152,15 +140,19 @@ func (d *DB) migrate() error {
         `CREATE INDEX IF NOT EXISTS idx_schedules_dow  ON schedules(day_of_week);`,
         `CREATE INDEX IF NOT EXISTS idx_devices_online ON devices(online);`,
         `CREATE INDEX IF NOT EXISTS idx_devices_last   ON devices(last_seen);`,
+
+        // v2.0.0: Migration for existing databases
+        `ALTER TABLE devices ADD COLUMN paused INTEGER NOT NULL DEFAULT 0;`,
     }
 
     for _, stmt := range statements {
         if _, err := d.db.Exec(stmt); err != nil {
-            return fmt.Errorf("exec [%s]: %w", firstLine(stmt), err)
+            // Ignore "duplicate column" errors during migration
+            if !strings.Contains(err.Error(), "duplicate column name") {
+                return fmt.Errorf("exec [%s]: %w", firstLine(stmt), err)
+            }
         }
     }
-
-    d.logger.Debugf("Database migrations complete (%d statements)", len(statements))
     return nil
 }
 
@@ -168,18 +160,17 @@ func (d *DB) migrate() error {
 func (d *DB) seedDefaults() error {
     now := time.Now().Unix()
 
-    // ── Global policy ─────────────────────────────────────────────
-    // FIX: Default to ALLOW_ALWAYS so the network doesn't shut down on first boot.
+    // v2.0.0: Global policy defaults to ALLOW_ALWAYS but ENABLED=FALSE
+    // Meaning devices use their own rules by default.
     _, err := d.db.Exec(
         `INSERT OR IGNORE INTO policies (mac, mode, enabled, created_at, updated_at)
-         VALUES (NULL, ?, 1, ?, ?)`,
+         VALUES (NULL, ?, 0, ?, ?)`,
         ModeAllowAlways, now, now,
     )
     if err != nil {
         return fmt.Errorf("seed global policy: %w", err)
     }
 
-    // ── Default settings ──────────────────────────────────────────
     defaults := map[string]string{
         "auth_password_hash": "",
         "auth_enabled":       "true",
@@ -204,8 +195,6 @@ func (d *DB) seedDefaults() error {
             return fmt.Errorf("seed setting %q: %w", k, err)
         }
     }
-
-    d.logger.Debugf("Default data seeded")
     return nil
 }
 
@@ -216,7 +205,6 @@ func NormalizeMAC(mac string) string {
     return mac
 }
 
-// firstLine returns the first line of a (possibly multi-line) SQL statement.
 func firstLine(s string) string {
     s = strings.TrimSpace(s)
     if idx := strings.IndexByte(s, '\n'); idx >= 0 {
