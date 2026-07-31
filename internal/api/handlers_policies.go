@@ -35,6 +35,12 @@ func (s *Server) handleUpdateGlobalPolicy(w http.ResponseWriter, r *http.Request
         return
     }
 
+    // v2.0.0: Validate new modes
+    if p.Mode != database.ModeAllowAlways && p.Mode != database.ModeBlockAlways && p.Mode != database.ModeScheduleBlock && p.Mode != database.ModeScheduleAllow {
+        writeError(w, http.StatusBadRequest, "Invalid global policy mode")
+        return
+    }
+
     if err := s.db.SetGlobalPolicy(p.Mode, p.Enabled); err != nil {
         writeError(w, http.StatusBadRequest, err.Error())
         return
@@ -62,9 +68,13 @@ func (s *Server) handleGetDevicePolicy(w http.ResponseWriter, r *http.Request) {
     }
     
     if p == nil {
-        // Return the global policy if no override exists, so frontend knows the effective state
+        // Return global as fallback
         p, _ = s.db.GetGlobalPolicy()
-        p.MAC = mac // Indicate which device this applies to
+        if p != nil {
+            p.MAC = mac
+            p.Mode = database.ModeGlobal // Indicate it's inheriting
+            p.Enabled = false
+        }
     }
 
     writeJSON(w, http.StatusOK, p)
@@ -84,6 +94,12 @@ func (s *Server) handleUpdateDevicePolicy(w http.ResponseWriter, r *http.Request
         return
     }
 
+    // v2.0.0: Validate new modes
+    if p.Mode != database.ModeGlobal && p.Mode != database.ModeAllowAlways && p.Mode != database.ModeBlockAlways && p.Mode != database.ModeScheduleBlock && p.Mode != database.ModeScheduleAllow {
+        writeError(w, http.StatusBadRequest, "Invalid device policy mode")
+        return
+    }
+
     if err := s.db.SetDevicePolicy(mac, p.Mode, p.Enabled); err != nil {
         writeError(w, http.StatusBadRequest, err.Error())
         return
@@ -97,7 +113,6 @@ func (s *Server) handleUpdateDevicePolicy(w http.ResponseWriter, r *http.Request
 }
 
 // handleDeleteDevicePolicy processes DELETE /api/policies/{mac}
-// Reverts the device to inheriting the global policy.
 func (s *Server) handleDeleteDevicePolicy(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -109,11 +124,6 @@ func (s *Server) handleDeleteDevicePolicy(w http.ResponseWriter, r *http.Request
         writeError(w, http.StatusInternalServerError, "Failed to delete device policy")
         return
     }
-
-    // Also clean up any schedules associated with the old override policy
-    // (The DB ON DELETE CASCADE handles this if the policy row is deleted,
-    // but DeleteDevicePolicy only deletes by MAC. We should ensure cleanup.)
-    // Note: The database layer's DeleteDevicePolicy deletes by MAC, so CASCADE works.
 
     s.applyPoliciesImmediately()
     s.db.InsertLog(database.LogCategoryPolicyChanged, "Removed device override, reverting to global", mac, "")
