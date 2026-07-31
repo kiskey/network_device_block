@@ -1,0 +1,71 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Static Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable' # Always uses the latest stable Go release
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0 # Ensures statically linked binary
+        run: |
+          mkdir -p artifacts
+          go build -ldflags="-s -w" -o artifacts/lias-linux-${{ matrix.goarch }} ./cmd/lias
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lias-linux-${{ matrix.goarch }}
+          path: artifacts/lias-linux-${{ matrix.goarch }}
+          retention-days: 1
+
+  release:
+    name: Publish to Latest Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Delete existing 'latest' release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || echo "Release 'latest' does not exist yet, skipping deletion."
+        continue-on-error: true
+
+      - name: Create new 'latest' release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create latest \
+            --title "Latest Build" \
+            --notes "Automated rolling release from branch \`main\` (Commit: ${{ github.sha }})" \
+            --latest \
+            artifacts/lias-linux-*
