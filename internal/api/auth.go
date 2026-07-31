@@ -65,7 +65,6 @@ func (a *Auth) SetPassword(password string) error {
 }
 
 // CreateSession generates a signed session token and sets the cookie.
-// Format: base64(username|expiresAt)|hmac
 func (a *Auth) CreateSession(w http.ResponseWriter, username string) {
     expiresAt := time.Now().Add(SessionDuration).Unix()
     data := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s|%d", username, expiresAt)))
@@ -175,6 +174,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
             return
         }
         s.auth.CreateSession(w, "admin")
+        s.setCSRFCookie(w) // FIX: Issue CSRF cookie on first run
         writeJSON(w, http.StatusOK, map[string]string{"status": "password_set"})
         return
     }
@@ -186,6 +186,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
     }
 
     s.auth.CreateSession(w, "admin")
+    s.setCSRFCookie(w) // FIX: Issue CSRF cookie on successful login
     s.db.InsertLog(database.LogCategoryAuth, "Successful login", "", "")
     writeJSON(w, http.StatusOK, map[string]string{"status": "logged_in"})
 }
