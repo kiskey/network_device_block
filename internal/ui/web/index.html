@@ -114,7 +114,6 @@
         .item-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .item-chevron { color: var(--text-tertiary); margin-left: 8px; }
 
-        /* v2.2.0 Superseded UI */
         .superseded { opacity: 0.5; }
         .superseded-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; }
 
@@ -156,7 +155,7 @@
         .error-text { color: var(--accent-red); font-size: 14px; margin-top: 16px; }
         .switch-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 
-        /* v2.2.0 HIG Alert Dialog */
+        /* HIG Alert Dialog */
         .alert-card { background: var(--bg-color-elevated); width: 300px; border-radius: 14px; overflow: hidden; animation: scaleIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) forwards; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .alert-content { padding: 24px; text-align: center; }
         .alert-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
@@ -167,18 +166,17 @@
         .alert-btn:active { background: var(--fill-tertiary); }
         .alert-btn.bold { font-weight: 600; }
 
-        /* v2.1.0 Visual Map */
-        .map-container { display: flex; align-items: center; justify-content: space-between; background: var(--bg-color-elevated); padding: 24px; border-radius: var(--radius-card); margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-        .map-node { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
-        .map-icon { font-size: 28px; background: var(--fill-tertiary); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .map-label { font-weight: 600; font-size: 14px; }
-        .map-sublabel { font-size: 12px; color: var(--text-secondary); text-align: center; }
-        .map-line { height: 4px; flex: 2; border-radius: 2px; position: relative; margin: 0 8px; margin-bottom: 24px; }
-        .map-line.allowed { background: var(--accent-green); }
-        .map-line.blocked { background: var(--accent-red); }
-        .map-line::after { content: ''; position: absolute; top: -4px; right: 0; width: 12px; height: 12px; border-radius: 50%; background: inherit; }
+        /* v2.3.0 Network Visual Map */
+        .network-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .tile-card { background: var(--bg-color-elevated); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; position: relative; transition: transform 0.1s; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .tile-card:active { transform: scale(0.97); }
+        .tile-icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: var(--fill-tertiary); border-radius: 50%; color: var(--text-primary); }
+        .tile-name { font-size: 14px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .tile-status { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+        .tile-badge { position: absolute; top: 8px; right: 8px; font-size: 8px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .tile-superseded { opacity: 0.6; }
 
-        /* v2.1.0 Collapsible Lists */
+        /* Collapsible Lists */
         .details-group { margin-bottom: 24px; }
         .details-summary { font-size: 14px; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.02em; padding: 14px 16px; background: var(--bg-color-elevated); border-radius: var(--radius-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04); list-style: none; }
         .details-summary::-webkit-details-marker { display: none; }
@@ -189,7 +187,6 @@
 </head>
 <body>
 
-    <!-- Auth View -->
     <div id="auth-view" class="auth-container hidden">
         <div class="auth-card">
             <div class="auth-icon">🔒</div>
@@ -201,13 +198,13 @@
         </div>
     </div>
 
-    <!-- Main App View -->
     <div id="app-view" class="hidden">
         <div class="app-container">
             <aside class="sidebar">
                 <div class="brand"><span class="brand-icon">🌐</span> Scheduler</div>
                 <nav class="nav-list">
                     <button class="nav-item active" data-view="dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg> Dashboard</button>
+                    <button class="nav-item" data-view="network"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Network</button>
                     <button class="nav-item" data-view="devices"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Devices</button>
                     <button class="nav-item" data-view="schedule"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Schedule</button>
                 </nav>
@@ -227,12 +224,12 @@
         </div>
         <nav class="tabbar">
             <button class="tab-item active" data-view="dashboard"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg> Home</button>
+            <button class="tab-item" data-view="network"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Network</button>
             <button class="tab-item" data-view="devices"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line></svg> Devices</button>
             <button class="tab-item" data-view="schedule"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg> Schedule</button>
         </nav>
     </div>
 
-    <!-- Bottom Sheet Modal -->
     <div id="modal-overlay" class="modal-overlay hidden">
         <div class="modal-card">
             <div class="sheet-header"><h2 id="modal-title">Details</h2><button class="sheet-close" onclick="closeModal()">✕</button></div>
@@ -240,7 +237,6 @@
         </div>
     </div>
 
-    <!-- v2.2.0 HIG Alert Dialog -->
     <div id="alert-overlay" class="modal-overlay hidden" style="z-index: 300; align-items: center;">
         <div class="alert-card">
             <div class="alert-content">
@@ -284,7 +280,6 @@
             } catch (e) { console.error(`API Error [${method} ${path}]:`, e); throw e; }
         }
 
-        // v2.2.0 HIG Alert System
         function showAlert(title, message, btnText = 'OK') {
             document.getElementById('alert-title').textContent = title;
             document.getElementById('alert-message').textContent = message;
@@ -314,8 +309,11 @@
 
         function setupNav() { const navItems = document.querySelectorAll('.nav-item[data-view], .tab-item[data-view]'); navItems.forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.nav-item[data-view], .tab-item[data-view]').forEach(b => b.classList.remove('active')); document.querySelectorAll(`[data-view="${btn.dataset.view}"]`).forEach(b => b.classList.add('active')); currentView = btn.dataset.view; renderView(); }); }); }
         setupNav();
-        async function renderView() { const main = document.getElementById('main-content'); main.innerHTML = `<div class="loader">Loading...</div>`; try { if (currentView === 'dashboard') await renderDashboard(main); else if (currentView === 'devices') await renderDevices(main); else if (currentView === 'schedule') await renderSchedule(main); } catch (err) { main.innerHTML = `<div class="error-text">Error: ${err.message}</div>`; } }
+        async function renderView() { const main = document.getElementById('main-content'); main.innerHTML = `<div class="loader">Loading...</div>`; try { if (currentView === 'dashboard') await renderDashboard(main); else if (currentView === 'network') await renderNetwork(main); else if (currentView === 'devices') await renderDevices(main); else if (currentView === 'schedule') await renderSchedule(main); } catch (err) { main.innerHTML = `<div class="error-text">Error: ${err.message}</div>`; } }
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Dashboard View (Cleaned up v2.3.0)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         async function renderDashboard(container) {
             const [dashData, devices, globalPolicy] = await Promise.all([
                 api('GET', '/api/dashboard'),
@@ -337,30 +335,23 @@
             devices.forEach(d => {
                 if (d.paused) { groups.paused.push(d); return; }
                 const mode = d.policy ? d.policy.mode : 'GLOBAL';
-                
-                // v2.2.0: Don't hide device rules if global is active. Just mark them as superseded.
                 let item = d; item.superseded = globalActive; 
-                
                 if (mode === 'BLOCK_ALWAYS') groups.block.push(item);
                 else if (mode === 'SCHEDULE_BLOCK') groups.sched_block.push(item);
                 else if (mode === 'SCHEDULE_ALLOW') groups.sched_allow.push(item);
-                else if (!globalActive) groups.allow.push(item); // Only show in "Allowed" if global isn't already catching it
+                else if (!globalActive) groups.allow.push(item); 
             });
 
-            const mapLineColor = dashData.blocked_devices > 0 ? 'blocked' : 'allowed';
-
             container.innerHTML = `
-                <div class="map-container">
-                    <div class="map-node"><div class="map-icon">🌐</div><div class="map-label">Internet</div></div>
-                    <div class="map-line ${mapLineColor}"></div>
-                    <div class="map-node"><div class="map-icon">🛡️</div><div class="map-label">Gateway</div><div class="map-sublabel">${dashData.blocked_devices} Blocked</div></div>
-                    <div class="map-line allowed"></div>
-                    <div class="map-node"><div class="map-icon">📱</div><div class="map-label">LAN Devices</div><div class="map-sublabel">${dashData.online_devices} Online</div></div>
-                </div>
                 <div class="dash-grid">
                     <div class="stat-card"><div class="stat-label">Gateway</div><div class="stat-value">${dashData.gateway_status}</div></div>
                     <div class="stat-card"><div class="stat-label">VPN</div><div class="stat-value">${dashData.vpn_status}</div></div>
                     <div class="stat-card"><div class="stat-label">Internet</div><div class="stat-value">${dashData.internet_status}</div></div>
+                </div>
+                <div class="dash-grid">
+                    <div class="stat-card"><div class="stat-label">Online</div><div class="stat-value"><span class="status-dot status-online"></span>${dashData.online_devices}</div></div>
+                    <div class="stat-card"><div class="stat-label">Blocked</div><div class="stat-value"><span class="status-dot status-blocked"></span>${dashData.blocked_devices}</div></div>
+                    <div class="stat-card"><div class="stat-label">Discovered</div><div class="stat-value">${dashData.device_count}</div></div>
                 </div>
                 <div class="list-header">Active Network Rules</div>
                 <div id="rules-list"></div>
@@ -400,6 +391,99 @@
                 ${renderGroup('Scheduled Whitelist', groups.sched_allow, 'status-blocked')}
                 ${renderGroup('Always Allowed', groups.allow, 'status-online')}
             `;
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Network View (v2.3.0 Visual Map)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function getDeviceType(hostname, vendor) {
+            const h = (hostname + ' ' + vendor).toLowerCase();
+            if (h.includes('iphone') || h.includes('android') || h.includes('pixel') || h.includes('samsung') || h.includes('galaxy') || h.includes('phone') || h.includes('oneplus')) return 'mobile';
+            if (h.includes('ipad') || h.includes('tablet')) return 'tablet';
+            if (h.includes('tv') || h.includes('roku') || h.includes('apple-tv') || h.includes('appletv') || h.includes('fire') || h.includes('cast') || h.includes('sony') || h.includes('lg')) return 'tv';
+            if (h.includes('printer') || h.includes('canon') || h.includes('hp') || h.includes('epson') || h.includes('brother')) return 'printer';
+            if (h.includes('nest') || h.includes('thermostat') || h.includes('alexa') || h.includes('echo') || h.includes('google-home') || h.includes('smart') || h.includes('plug') || h.includes('iot') || h.includes('tuya')) return 'iot';
+            if (h.includes('mac') || h.includes('pc') || h.includes('windows') || h.includes('linux') || h.includes('desktop') || h.includes('laptop') || h.includes('book') || h.includes('intel')) return 'computer';
+            if (h.includes('nintendo') || h.includes('playstation') || h.includes('xbox')) return 'gaming';
+            return 'generic';
+        }
+
+        function getDeviceIcon(type) {
+            const icons = {
+                mobile: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>',
+                tablet: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>',
+                tv: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>',
+                printer: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>',
+                iot: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path><line x1="9" y1="22" x2="15" y2="22"></line></svg>',
+                computer: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>',
+                gaming: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="11" x2="10" y2="11"></line><line x1="8" y1="9" x2="8" y2="13"></line><line x1="15" y1="12" x2="15.01" y2="12"></line><line x1="18" y1="10" x2="18.01" y2="10"></line><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.544-.604-6.584-.685-7.258A4 4 0 0 0 17.32 5z"></path></svg>',
+                generic: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>'
+            };
+            return icons[type] || icons.generic;
+        }
+
+        async function renderNetwork(container) {
+            const [devices, globalPolicy] = await Promise.all([
+                api('GET', '/api/devices'),
+                api('GET', '/api/policies/global')
+            ]);
+
+            const grouped = {};
+            devices.forEach(d => {
+                const type = getDeviceType(d.hostname, d.vendor);
+                if (!grouped[type]) grouped[type] = [];
+                grouped[type].push(d);
+            });
+
+            let html = '';
+            const typeOrder = ['computer', 'mobile', 'tablet', 'tv', 'gaming', 'printer', 'iot', 'generic'];
+            
+            typeOrder.forEach(type => {
+                if (grouped[type] && grouped[type].length > 0) {
+                    html += `<div class="list-header">${type.charAt(0).toUpperCase() + type.slice(1)}s</div>`;
+                    html += `<div class="network-grid">`;
+                    grouped[type].forEach(d => {
+                        let actualMode = d.policy ? d.policy.mode : 'GLOBAL';
+                        if (globalPolicy.enabled) actualMode = globalPolicy.mode;
+                        if (d.paused) actualMode = 'BLOCK_ALWAYS'; 
+                        
+                        let statusColor = 'status-online';
+                        let statusText = 'Allowed';
+                        
+                        if (!d.online) {
+                            statusColor = 'status-offline';
+                            statusText = 'Offline';
+                        } else if (d.paused) {
+                            statusColor = 'status-paused';
+                            statusText = 'Paused';
+                        } else if (actualMode === 'BLOCK_ALWAYS') {
+                            statusColor = 'status-blocked';
+                            statusText = 'Blocked';
+                        } else if (actualMode === 'ALLOW_ALWAYS') {
+                            statusColor = 'status-online';
+                            statusText = 'Allowed';
+                        } else {
+                            statusColor = 'status-paused'; 
+                            statusText = 'Scheduled';
+                        }
+
+                        html += `
+                            <div class="tile-card ${globalPolicy.enabled && !d.paused ? 'tile-superseded' : ''}" onclick="openDeviceModal('${d.mac}')">
+                                ${globalPolicy.enabled && !d.paused ? '<div class="tile-badge">Global</div>' : ''}
+                                <div class="tile-icon">${getDeviceIcon(type)}</div>
+                                <div class="tile-name">${d.friendly_name || d.hostname || 'Unknown'}</div>
+                                <div class="tile-status">
+                                    <span class="status-dot ${statusColor}"></span>
+                                    ${statusText}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+                }
+            });
+            
+            container.innerHTML = html || '<div class="loader">No devices discovered yet.</div>';
         }
 
         function goToSchedule() {
@@ -445,7 +529,7 @@
             modal.classList.remove('hidden'); title.textContent = "Device Details"; content.innerHTML = `<div class="loader">Loading...</div>`;
             try {
                 const dev = await api('GET', `/api/devices/${mac}`);
-                const globalPolicy = await api('GET', '/api/policies/global`);
+                const globalPolicy = await api('GET', '/api/policies/global');
                 const policy = dev.policy || { mode: 'GLOBAL', enabled: false };
                 let schedules = [];
                 if (policy.mode === 'SCHEDULE_BLOCK' || policy.mode === 'SCHEDULE_ALLOW') { try { schedules = await api('GET', `/api/policies/${mac}/schedules`); } catch (e) {} }
@@ -544,16 +628,13 @@
             list.appendChild(div);
         }
         
-        // v2.2.0 Fix: Merged Policy and Schedule saving into one atomic function
         async function saveGlobalConfig() {
             const mode = document.getElementById('global-mode').value;
             const enabled = document.getElementById('global-enabled').checked;
             
             try {
-                // 1. Save Policy Mode & Enabled state
                 await api('PUT', '/api/policies/global', { mode: mode, enabled: enabled });
                 
-                // 2. Save Schedules (only if mode is schedule)
                 if (mode === 'SCHEDULE_BLOCK' || mode === 'SCHEDULE_ALLOW') {
                     const existing = await api('GET', '/api/schedules/global');
                     for (const s of existing) { await api('DELETE', `/api/schedules/${s.id}`); }
