@@ -65,7 +65,10 @@ func NewServer(db *database.DB, fw *firewall.Firewall, cfg ServerConfig, logger 
 func (s *Server) registerRoutes() {
     // Auth routes (public)
     s.mux.HandleFunc("POST /api/login", s.handleLogin)
-    s.mux.HandleFunc("POST /api/logout", s.authMiddleware(s.handleLogout))
+    
+    // FIX: authMiddleware returns an http.Handler, so we must use s.mux.Handle, not HandleFunc
+    s.mux.Handle("POST /api/logout", s.authMiddleware(s.handleLogout))
+    
     s.mux.HandleFunc("GET /api/auth/status", s.handleAuthStatus)
 
     // API routes (protected, require auth and CSRF)
