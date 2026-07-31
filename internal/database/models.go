@@ -4,7 +4,6 @@
 package database
 
 // Device represents a discovered LAN device.
-// MAC address is the immutable primary key. IP is informational only.
 type Device struct {
     MAC          string  `json:"mac"`
     Hostname     string  `json:"hostname"`
@@ -14,7 +13,8 @@ type Device struct {
     Online       bool    `json:"online"`
     FirstSeen    int64   `json:"first_seen"`
     LastSeen     int64   `json:"last_seen"`
-    Policy       *Policy `json:"policy,omitempty"` // Attached by API for UI convenience
+    Paused       bool    `json:"paused"` // v2.0.0: Temporary instant-block state
+    Policy       *Policy `json:"policy,omitempty"`
 }
 
 // Policy represents either the global policy (MAC is empty) or a device override.
@@ -22,7 +22,7 @@ type Policy struct {
     ID        int64  `json:"id"`
     MAC       string `json:"mac"` // empty string for global policy
     Mode      string `json:"mode"`
-    Enabled   bool   `json:"enabled"`
+    Enabled   bool   `json:"enabled"` // v2.0.0: For global, means "Global takes precedence". For device, means "Override is active".
     CreatedAt int64  `json:"created_at"`
     UpdatedAt int64  `json:"updated_at"`
 }
