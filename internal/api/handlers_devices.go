@@ -14,6 +14,13 @@ func (s *Server) handleGetDevices(w http.ResponseWriter, r *http.Request) {
         writeError(w, http.StatusInternalServerError, "Failed to fetch devices")
         return
     }
+
+    // Attach policy to each device for UI convenience
+    for i := range devices {
+        p, _ := s.db.GetEffectivePolicy(devices[i].MAC)
+        devices[i].Policy = p
+    }
+
     writeJSON(w, http.StatusOK, devices)
 }
 
@@ -35,17 +42,13 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Attach current effective policy to the device payload for UI convenience
     policy, _ := s.db.GetEffectivePolicy(mac)
-    if policy != nil {
-        device.Policy = policy
-    }
+    device.Policy = policy
 
     writeJSON(w, http.StatusOK, device)
 }
 
 // handleUpdateDevice processes PUT /api/devices/{mac}
-// Currently only supports updating the friendly_name.
 func (s *Server) handleUpdateDevice(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -67,7 +70,6 @@ func (s *Server) handleUpdateDevice(w http.ResponseWriter, r *http.Request) {
     }
 
     s.db.InsertLog(database.LogCategoryManualToggle, "Updated device friendly name", mac, payload.FriendlyName)
-    
     device, _ := s.db.GetDevice(mac)
     writeJSON(w, http.StatusOK, device)
 }
@@ -87,13 +89,11 @@ func (s *Server) handleDeleteDevice(w http.ResponseWriter, r *http.Request) {
 
     s.applyPoliciesImmediately()
     s.db.InsertLog(database.LogCategoryManualToggle, "Deleted device and policy", mac, "")
-
     writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // handleToggleDevice processes POST /api/devices/{mac}/toggle
-// Provides an instant internet on/off switch. 
-// If currently allowed (or unknown), it blocks. If currently blocked, it allows.
+// v2.0.0: Toggles the temporary 'Paused' state, preserving underlying schedules.
 func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -101,39 +101,26 @@ func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Check if device exists, if not, create a stub record so it can be blocked later
     dev, _ := s.db.GetDevice(mac)
     if dev == nil {
-        // Upsert with empty data just to register the MAC for the toggle
         s.db.UpsertDevice(mac, "Unknown Device", "", "", false)
+        dev, _ = s.db.GetDevice(mac)
     }
 
-    effPolicy, err := s.db.GetEffectivePolicy(mac)
-    if err != nil {
-        writeError(w, http.StatusInternalServerError, "Failed to get effective policy")
-        return
-    }
-
-    var newMode string
-    if effPolicy.Mode == database.ModeBlockAlways {
-        newMode = database.ModeAllowAlways
-    } else {
-        newMode = database.ModeBlockAlways
-    }
-
-    // Apply as an override
-    if err := s.db.SetDevicePolicy(mac, newMode, true); err != nil {
-        writeError(w, http.StatusInternalServerError, "Failed to set policy")
+    // Invert paused state
+    newPaused := !dev.Paused
+    if err := s.db.SetDevicePaused(mac, newPaused); err != nil {
+        writeError(w, http.StatusInternalServerError, "Failed to toggle pause state")
         return
     }
 
     s.applyPoliciesImmediately()
-    
-    action := "Internet disabled"
-    if newMode == database.ModeAllowAlways {
-        action = "Internet enabled"
+
+    action := "Internet resumed"
+    if newPaused {
+        action = "Internet paused"
     }
     s.db.InsertLog(database.LogCategoryManualToggle, action, mac, "")
 
-    writeJSON(w, http.StatusOK, map[string]string{"status": "toggled", "new_mode": newMode})
+    writeJSON(w, http.StatusOK, map[string]bool{"paused": newPaused})
 }
