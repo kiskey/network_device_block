@@ -1,6 +1,7 @@
 package api
 
 import (
+    "crypto/hmac"
     "database/sql"
     "encoding/base64"
     "encoding/json"
