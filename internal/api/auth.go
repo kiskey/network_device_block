@@ -2,7 +2,11 @@ package api
 
 import (
     "database/sql"
+    "encoding/base64"
+    "encoding/json"
+    "fmt"
     "net/http"
+    "strconv"
     "strings"
     "time"
 
@@ -196,17 +200,12 @@ func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
     hash, _ := s.db.GetSetting("auth_password_hash")
     
     status := map[string]interface{}{
-        "auth_enabled": s.auth.IsAuthEnabled(),
-        "password_set": hash != "",
+        "auth_enabled":  s.auth.IsAuthEnabled(),
+        "password_set":  hash != "",
         "authenticated": s.auth.ValidateSession(r),
     }
     writeJSON(w, http.StatusOK, status)
 }
 
-// unused imports
-import (
-    "encoding/json"
-    "fmt"
-    "strconv"
-)
+// unused imports prevention
 var _ = sql.ErrNoRows
