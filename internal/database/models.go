@@ -6,14 +6,15 @@ package database
 // Device represents a discovered LAN device.
 // MAC address is the immutable primary key. IP is informational only.
 type Device struct {
-    MAC          string `json:"mac"`
-    Hostname     string `json:"hostname"`
-    FriendlyName string `json:"friendly_name"`
-    Vendor       string `json:"vendor"`
-    CurrentIP    string `json:"current_ip"`
-    Online       bool   `json:"online"`
-    FirstSeen    int64  `json:"first_seen"`
-    LastSeen     int64  `json:"last_seen"`
+    MAC          string  `json:"mac"`
+    Hostname     string  `json:"hostname"`
+    FriendlyName string  `json:"friendly_name"`
+    Vendor       string  `json:"vendor"`
+    CurrentIP    string  `json:"current_ip"`
+    Online       bool    `json:"online"`
+    FirstSeen    int64   `json:"first_seen"`
+    LastSeen     int64   `json:"last_seen"`
+    Policy       *Policy `json:"policy,omitempty"` // Attached by API for UI convenience
 }
 
 // Policy represents either the global policy (MAC is empty) or a device override.
