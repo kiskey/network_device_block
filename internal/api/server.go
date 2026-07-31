@@ -50,7 +50,6 @@ func NewServer(db *database.DB, fw *firewall.Firewall, cfg ServerConfig, logger 
 
     s.auth = NewAuth(db, logger)
     
-    // Ensure session secret exists
     if secret, _ := db.GetSetting("session_secret"); secret == "" {
         newSecret := generateRandomString(32)
         _ = db.SetSetting("session_secret", newSecret)
@@ -62,12 +61,12 @@ func NewServer(db *database.DB, fw *firewall.Firewall, cfg ServerConfig, logger 
 
 // registerRoutes maps URLs to handler functions.
 func (s *Server) registerRoutes() {
-    // Auth routes (public)
+    // Auth routes
     s.mux.HandleFunc("POST /api/login", s.handleLogin)
     s.mux.Handle("POST /api/logout", s.authMiddleware(s.handleLogout))
     s.mux.HandleFunc("GET /api/auth/status", s.handleAuthStatus)
 
-    // API routes (protected, require auth and CSRF)
+    // API routes
     api := http.NewServeMux()
     
     // Dashboard
@@ -91,6 +90,11 @@ func (s *Server) registerRoutes() {
     // Schedules
     api.HandleFunc("GET /api/schedules/global", s.handleGetGlobalSchedules)
     api.HandleFunc("POST /api/schedules/global", s.handleAddGlobalSchedule)
+    
+    // FIX: Added routes for per-device custom schedules
+    api.HandleFunc("GET /api/policies/{mac}/schedules", s.handleGetDeviceSchedules)
+    api.HandleFunc("POST /api/policies/{mac}/schedules", s.handleAddDeviceSchedule)
+    
     api.HandleFunc("PUT /api/schedules/{id}", s.handleUpdateSchedule)
     api.HandleFunc("DELETE /api/schedules/{id}", s.handleDeleteSchedule)
     
@@ -100,7 +104,7 @@ func (s *Server) registerRoutes() {
     // Wrap API routes with Auth and CSRF middleware
     s.mux.Handle("/api/", s.csrfMiddleware(s.authMiddleware(api.ServeHTTP)))
 
-    // FIX: Serve the actual embedded UI from internal/ui
+    // Serve embedded UI
     s.mux.Handle("/", ui.Handler())
 }
 
@@ -131,25 +135,19 @@ func (s *Server) Stop(ctx context.Context) error {
     return nil
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Helper functions
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// generateRandomString creates a cryptographically secure random base64 string.
 func generateRandomString(length int) string {
     b := make([]byte, length)
     _, _ = rand.Read(b)
     return base64.StdEncoding.EncodeToString(b)
 }
 
-// computeHMAC creates a SHA256 HMAC for the given data using the secret.
 func computeHMAC(data string, secret string) string {
     h := hmac.New(sha256.New, []byte(secret))
     h.Write([]byte(data))
     return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-// writeJSON sends a JSON response with the given status code.
 func writeJSON(w http.ResponseWriter, code int, payload interface{}) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(code)
@@ -158,7 +156,6 @@ func writeJSON(w http.ResponseWriter, code int, payload interface{}) {
     }
 }
 
-// writeError sends a JSON error response.
 func writeError(w http.ResponseWriter, code int, msg string) {
     writeJSON(w, code, map[string]string{"error": msg})
 }
