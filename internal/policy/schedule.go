@@ -7,10 +7,10 @@ import (
     "lias/internal/database"
 )
 
-// IsAllowedNow checks if the given time falls within any of the provided
+// IsBlockedNow checks if the given time falls within any of the provided
 // schedule ranges. It supports multiple ranges per day and cross-midnight
 // ranges (where EndTime < StartTime).
-func IsAllowedNow(schedules []database.Schedule, now time.Time) bool {
+func IsBlockedNow(schedules []database.Schedule, now time.Time) bool {
     currentDay := int(now.Weekday()) // 0=Sunday ... 6=Saturday
     currentMinutes := now.Hour()*60 + now.Minute()
 
@@ -38,7 +38,7 @@ func IsAllowedNow(schedules []database.Schedule, now time.Time) bool {
             }
         } else {
             // Cross-midnight range (e.g., 22:00 to 02:00)
-            // Current time is allowed if it's >= start OR < end
+            // Current time is blocked if it's >= start OR < end
             if currentMinutes >= startMin || currentMinutes < endMin {
                 return true
             }
