@@ -18,6 +18,7 @@ type DashboardData struct {
     NextSchedule       *database.Schedule `json:"next_schedule"`
     NextScheduleDevice string             `json:"next_schedule_device"`
     DeviceCount        int                `json:"device_count"`
+    GlobalPolicyActive bool               `json:"global_policy_active"`
 }
 
 // handleGetDashboard processes GET /api/dashboard
@@ -28,7 +29,6 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
         VPNStatus:      "Connected",
     }
 
-    // Get device counts
     devices, err := s.db.GetAllDevices()
     if err == nil {
         data.DeviceCount = len(devices)
@@ -39,19 +39,22 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
         }
     }
 
-    // Get blocked count from live nftables set
     blockedMacs, err := s.fw.GetBlockedMACs()
     if err == nil {
         data.BlockedDevices = len(blockedMacs)
     }
 
-    // Find next schedule event
+    // v2.0.0: Report if global policy is taking precedence
+    global, err := s.db.GetGlobalPolicy()
+    if err == nil {
+        data.GlobalPolicyActive = global.Enabled
+    }
+
     data.NextSchedule, data.NextScheduleDevice = s.findNextScheduleEvent(devices)
 
     writeJSON(w, http.StatusOK, data)
 }
 
-// findNextScheduleEvent scans all schedules and returns the next one that will trigger.
 func (s *Server) findNextScheduleEvent(devices []database.Device) (*database.Schedule, string) {
     now := time.Now()
     var nextSched *database.Schedule
@@ -64,9 +67,11 @@ func (s *Server) findNextScheduleEvent(devices []database.Device) (*database.Sch
     }
 
     for _, p := range policies {
-        if !p.Enabled || p.Mode != database.ModeSchedule {
+        // Only look at active schedules
+        if !p.Enabled || (p.Mode != database.ModeScheduleBlock && p.Mode != database.ModeScheduleAllow) {
             continue
         }
+        
         schedules, err := s.db.GetSchedulesByPolicy(p.ID)
         if err != nil {
             continue
@@ -83,7 +88,6 @@ func (s *Server) findNextScheduleEvent(devices []database.Device) (*database.Sch
                 sCopy := sched
                 nextSched = &sCopy
                 
-                // Resolve device name
                 if p.MAC == "" {
                     deviceName = "All Devices (Global)"
                 } else {
@@ -108,12 +112,11 @@ func (s *Server) findNextScheduleEvent(devices []database.Device) (*database.Sch
     return nextSched, deviceName
 }
 
-// nextOccurrence calculates the next time a schedule will start.
 func nextOccurrence(s database.Schedule, now time.Time) time.Time {
     var h, m int
     _, err := fmt.Sscanf(s.StartTime, "%d:%d", &h, &m)
     if err != nil {
-        return now.AddDate(1, 0, 0) // far future
+        return now.AddDate(1, 0, 0)
     }
 
     currentDay := int(now.Weekday())
