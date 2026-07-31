@@ -1,6 +1,5 @@
 // Package database (models.go) defines the core data structures used
-// throughout the application. These structs map directly to the SQLite
-// database tables and are serialized to JSON for the API.
+// throughout the application. v3.0.0 adds device intelligence fields.
 package database
 
 // Device represents a discovered LAN device.
@@ -13,16 +12,24 @@ type Device struct {
     Online       bool    `json:"online"`
     FirstSeen    int64   `json:"first_seen"`
     LastSeen     int64   `json:"last_seen"`
-    Paused       bool    `json:"paused"` // v2.0.0: Temporary instant-block state
+    Paused       bool    `json:"paused"`
     Policy       *Policy `json:"policy,omitempty"`
+
+    // v3.0.0 Device Intelligence Fields
+    DeviceType       string `json:"device_type"`       // e.g., "Mobile", "TV", "Computer"
+    Manufacturer     string `json:"manufacturer"`      // e.g., "Apple", "Samsung"
+    OS               string `json:"os"`                // e.g., "iOS 16", "Linux 5.x"
+    Services         string `json:"services"`          // JSON string of services/ports
+    DiscoverySources string `json:"discovery_sources"` // e.g., "netlink,nmap,dhcp"
+    Confidence       int    `json:"confidence"`        // 0-100
 }
 
 // Policy represents either the global policy (MAC is empty) or a device override.
 type Policy struct {
     ID        int64  `json:"id"`
-    MAC       string `json:"mac"` // empty string for global policy
+    MAC       string `json:"mac"`
     Mode      string `json:"mode"`
-    Enabled   bool   `json:"enabled"` // v2.0.0: For global, means "Global takes precedence". For device, means "Override is active".
+    Enabled   bool   `json:"enabled"`
     CreatedAt int64  `json:"created_at"`
     UpdatedAt int64  `json:"updated_at"`
 }
@@ -31,9 +38,9 @@ type Policy struct {
 type Schedule struct {
     ID         int64  `json:"id"`
     PolicyID   int64  `json:"policy_id"`
-    DayOfWeek  int    `json:"day_of_week"` // 0=Sunday ... 6=Saturday
-    StartTime  string `json:"start_time"`  // "HH:MM"
-    EndTime    string `json:"end_time"`    // "HH:MM"
+    DayOfWeek  int    `json:"day_of_week"`
+    StartTime  string `json:"start_time"`
+    EndTime    string `json:"end_time"`
     Enabled    bool   `json:"enabled"`
     CreatedAt  int64  `json:"created_at"`
     UpdatedAt  int64  `json:"updated_at"`
@@ -56,7 +63,6 @@ type Setting struct {
     UpdatedAt int64  `json:"updated_at"`
 }
 
-// Helper function to convert bool to int for SQLite
 func boolToInt(b bool) int {
     if b {
         return 1
