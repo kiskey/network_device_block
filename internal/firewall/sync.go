@@ -2,190 +2,100 @@ package firewall
 
 import (
     "fmt"
+    "regexp"
+    "strings"
 )
 
-// GetBlockedMACs retrieves the current MAC addresses in the blocked_macs set.
-func (fw *Firewall) GetBlockedMACs() (map[string]struct{}, error) {
+var macRegex = regexp.MustCompile(`([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}`)
+
+// getCurrentMACs fetches the elements of an nftables set as a map.
+func (fw *Firewall) getCurrentMACs(setName string) (map[string]struct{}, error) {
     fw.mu.Lock()
     defer fw.mu.Unlock()
 
-    elements, err := fw.conn.GetSetElements(fw.blockedSet)
+    out, err := fw.runNft("list", "set", "netdev", TableName, setName)
     if err != nil {
-        return nil, fmt.Errorf("get blocked elements: %w", err)
+        // If the set doesn't exist or is empty, return empty map
+        return make(map[string]struct{}), nil
     }
 
     macs := make(map[string]struct{})
-    for _, elem := range elements {
-        if len(elem.Key) == 6 {
-            mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
-                elem.Key[0], elem.Key[1], elem.Key[2],
-                elem.Key[3], elem.Key[4], elem.Key[5])
-            macs[mac] = struct{}{}
-        }
+    matches := macRegex.FindAllString(out, -1)
+    for _, m := range matches {
+        macs[strings.ToLower(m)] = struct{}{}
     }
     return macs, nil
+}
+
+// GetBlockedMACs retrieves the current MAC addresses in the blocked_macs set.
+func (fw *Firewall) GetBlockedMACs() (map[string]struct{}, error) {
+    return fw.getCurrentMACs(BlockedSetName)
 }
 
 // GetOverrideMACs retrieves the current MAC addresses in the override_allow set.
 func (fw *Firewall) GetOverrideMACs() (map[string]struct{}, error) {
-    fw.mu.Lock()
-    defer fw.mu.Unlock()
-
-    elements, err := fw.conn.GetSetElements(fw.overrideSet)
-    if err != nil {
-        return nil, fmt.Errorf("get override elements: %w", err)
-    }
-
-    macs := make(map[string]struct{})
-    for _, elem := range elements {
-        if len(elem.Key) == 6 {
-            mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
-                elem.Key[0], elem.Key[1], elem.Key[2],
-                elem.Key[3], elem.Key[4], elem.Key[5])
-            macs[mac] = struct{}{}
-        }
-    }
-    return macs, nil
+    return fw.getCurrentMACs(OverrideSetName)
 }
 
-// SyncBlockedMACs takes the desired list of MACs to block, diffs it against
-// the current nftables set, and applies only the additions and deletions.
+// syncSet takes the desired list of MACs, diffs it against the current nftables
+// set, and applies only the additions and deletions.
 // It NEVER flushes or recreates the set.
+func (fw *Firewall) syncSet(setName string, desired []string) error {
+    current, err := fw.getCurrentMACs(setName)
+    if err != nil {
+        return err
+    }
+
+    desiredMap := make(map[string]struct{})
+    var toAdd []string
+    var toDelete []string
+
+    for _, macStr := range desired {
+        macStr = strings.ToLower(macStr)
+        if !macRegex.MatchString(macStr) {
+            fw.logger.Warnf("Skipping invalid MAC format %s", macStr)
+            continue
+        }
+        desiredMap[macStr] = struct{}{}
+        if _, exists := current[macStr]; !exists {
+            toAdd = append(toAdd, macStr)
+        }
+    }
+
+    for macStr := range current {
+        if _, exists := desiredMap[macStr]; !exists {
+            toDelete = append(toDelete, macStr)
+        }
+    }
+
+    fw.mu.Lock()
+    defer fw.mu.Unlock()
+
+    if len(toAdd) > 0 {
+        elems := strings.Join(toAdd, ", ")
+        if _, err := fw.runNft("add", "element", "netdev", TableName, setName, "{ "+elems+" }"); err != nil {
+            return fmt.Errorf("add elements to %s: %v", setName, err)
+        }
+        fw.logger.Debugf("Added %d MACs to %s", len(toAdd), setName)
+    }
+
+    if len(toDelete) > 0 {
+        elems := strings.Join(toDelete, ", ")
+        if _, err := fw.runNft("delete", "element", "netdev", TableName, setName, "{ "+elems+" }"); err != nil {
+            return fmt.Errorf("delete elements from %s: %v", setName, err)
+        }
+        fw.logger.Debugf("Removed %d MACs from %s", len(toDelete), setName)
+    }
+
+    return nil
+}
+
+// SyncBlockedMACs syncs the blocked_macs set.
 func (fw *Firewall) SyncBlockedMACs(desired []string) error {
-    fw.mu.Lock()
-    defer fw.mu.Unlock()
-
-    current, err := fw.getCurrentMACs(fw.blockedSet)
-    if err != nil {
-        return err
-    }
-
-    desiredMap := make(map[string]struct{})
-    var toAdd []*nftables.SetElement
-    var toDelete []*nftables.SetElement
-
-    for _, macStr := range desired {
-        macStr = strings.ToLower(macStr)
-        desiredMap[macStr] = struct{}{}
-        if _, exists := current[macStr]; !exists {
-            macBytes, err := parseMAC(macStr)
-            if err != nil {
-                fw.logger.Warnf("Skipping invalid MAC %s: %v", macStr, err)
-                continue
-            }
-            toAdd = append(toAdd, &nftables.SetElement{
-                Key: macBytes[:],
-            })
-        }
-    }
-
-    for macStr, elem := range current {
-        if _, exists := desiredMap[macStr]; !exists {
-            toDelete = append(toDelete, elem)
-        }
-    }
-
-    if len(toAdd) > 0 {
-        if err := fw.conn.SetAddElements(fw.blockedSet, toAdd); err != nil {
-            return fmt.Errorf("add blocked elements: %w", err)
-        }
-        fw.logger.Debugf("Adding %d MACs to blocked set", len(toAdd))
-    }
-
-    if len(toDelete) > 0 {
-        if err := fw.conn.SetDeleteElements(fw.blockedSet, toDelete); err != nil {
-            return fmt.Errorf("delete blocked elements: %w", err)
-        }
-        fw.logger.Debugf("Removing %d MACs from blocked set", len(toDelete))
-    }
-
-    if len(toAdd) > 0 || len(toDelete) > 0 {
-        if err := fw.conn.Flush(); err != nil {
-            return fmt.Errorf("flush blocked changes: %w", err)
-        }
-    }
-
-    return nil
+    return fw.syncSet(BlockedSetName, desired)
 }
 
-// SyncOverrideMACs takes the desired list of MACs to allow, diffs it against
-// the current nftables set, and applies only the additions and deletions.
+// SyncOverrideMACs syncs the override_allow set.
 func (fw *Firewall) SyncOverrideMACs(desired []string) error {
-    fw.mu.Lock()
-    defer fw.mu.Unlock()
-
-    current, err := fw.getCurrentMACs(fw.overrideSet)
-    if err != nil {
-        return err
-    }
-
-    desiredMap := make(map[string]struct{})
-    var toAdd []*nftables.SetElement
-    var toDelete []*nftables.SetElement
-
-    for _, macStr := range desired {
-        macStr = strings.ToLower(macStr)
-        desiredMap[macStr] = struct{}{}
-        if _, exists := current[macStr]; !exists {
-            macBytes, err := parseMAC(macStr)
-            if err != nil {
-                fw.logger.Warnf("Skipping invalid MAC %s: %v", macStr, err)
-                continue
-            }
-            toAdd = append(toAdd, &nftables.SetElement{
-                Key: macBytes[:],
-            })
-        }
-    }
-
-    for macStr, elem := range current {
-        if _, exists := desiredMap[macStr]; !exists {
-            toDelete = append(toDelete, elem)
-        }
-    }
-
-    if len(toAdd) > 0 {
-        if err := fw.conn.SetAddElements(fw.overrideSet, toAdd); err != nil {
-            return fmt.Errorf("add override elements: %w", err)
-        }
-        fw.logger.Debugf("Adding %d MACs to override set", len(toAdd))
-    }
-
-    if len(toDelete) > 0 {
-        if err := fw.conn.SetDeleteElements(fw.overrideSet, toDelete); err != nil {
-            return fmt.Errorf("delete override elements: %w", err)
-        }
-        fw.logger.Debugf("Removing %d MACs from override set", len(toDelete))
-    }
-
-    if len(toAdd) > 0 || len(toDelete) > 0 {
-        if err := fw.conn.Flush(); err != nil {
-            return fmt.Errorf("flush override changes: %w", err)
-        }
-    }
-
-    return nil
+    return fw.syncSet(OverrideSetName, desired)
 }
-
-// getCurrentMACs is an internal helper to fetch set elements as a map
-// of MAC string to SetElement pointers.
-func (fw *Firewall) getCurrentMACs(set *nftables.Set) (map[string]*nftables.SetElement, error) {
-    elements, err := fw.conn.GetSetElements(set)
-    if err != nil {
-        return nil, fmt.Errorf("get elements for set %s: %w", set.Name, err)
-    }
-
-    macs := make(map[string]*nftables.SetElement)
-    for _, elem := range elements {
-        if len(elem.Key) == 6 {
-            mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
-                elem.Key[0], elem.Key[1], elem.Key[2],
-                elem.Key[3], elem.Key[4], elem.Key[5])
-            macs[mac] = elem
-        }
-    }
-    return macs, nil
-}
-
-// Ensure strings is used
-var _ = fmt.Sprintf
