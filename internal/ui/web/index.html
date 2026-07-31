@@ -173,7 +173,7 @@
         </div>
     </div>
 
-    <script>
+        <script>
         let currentView = 'dashboard';
         let authStatus = { auth_enabled: false, password_set: false, authenticated: false };
 
@@ -242,7 +242,6 @@
             else {
                 devices.forEach(d => {
                     const dotClass = d.online ? 'status-online' : 'status-offline';
-                    // v2.0.0: Toggle represents Pause state. If paused, internet is off.
                     const isPaused = d.paused;
                     html += `
                         <div class="card-item" onclick="openDeviceModal('${d.mac}')">
@@ -336,7 +335,7 @@
                 <div class="card-group">
                     <div class="switch-container" style="padding: 14px 16px;">
                         <div><div class="item-title">Enable Global Override</div><div class="item-subtitle">If on, ignores all device rules.</div></div>
-                        <div class="toggle-switch"><input type="checkbox" id="global-enabled" ${policy.enabled?'checked':''}><span class="slider"></span></div>
+                        <div class="toggle-switch"><input type="checkbox" id="global-enabled" ${policy.enabled?'checked':''} onchange="saveGlobalPolicy()"><span class="slider"></span></div>
                     </div>
                     <div class="card-item" style="cursor: default;">
                         <div class="item-info"><div class="item-title">Default Mode</div></div>
