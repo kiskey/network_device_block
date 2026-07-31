@@ -1,7 +1,6 @@
 package database
 
 import (
-    "database/sql"
     "fmt"
     "time"
 )
@@ -88,7 +87,6 @@ func (d *DB) DeleteSchedule(id int64) error {
 }
 
 // DeleteSchedulesByPolicy removes all schedule ranges for a given policy.
-// Useful when a policy is deleted or changed from SCHEDULE mode.
 func (d *DB) DeleteSchedulesByPolicy(policyID int64) error {
     _, err := d.db.Exec(`DELETE FROM schedules WHERE policy_id = ?`, policyID)
     if err != nil {
