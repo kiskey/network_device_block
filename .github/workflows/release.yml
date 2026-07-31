@@ -23,14 +23,19 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable' # Always uses the latest stable Go release
+          go-version: 'stable'
           cache: true
+
+      - name: Download and tidy dependencies
+        run: |
+          go mod download
+          go mod tidy
 
       - name: Build binary
         env:
           GOOS: linux
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0 # Ensures statically linked binary
+          CGO_ENABLED: 0
         run: |
           mkdir -p artifacts
           go build -ldflags="-s -w" -o artifacts/lias-linux-${{ matrix.goarch }} ./cmd/lias
