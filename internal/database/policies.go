@@ -48,29 +48,47 @@ func (d *DB) GetDevicePolicy(mac string) (*Policy, error) {
 }
 
 // GetEffectivePolicy resolves the actual policy mode for a device.
-// If the device has an override policy that is enabled and not set to GLOBAL,
-// that mode is used. Otherwise, the global policy's mode is used.
+// v2.0.0: If Global is Enabled, it takes precedence.
 func (d *DB) GetEffectivePolicy(mac string) (*Policy, error) {
     mac = NormalizeMAC(mac)
     
+    global, err := d.GetGlobalPolicy()
+    if err != nil {
+        return nil, err
+    }
+
+    // v2.0.0: Global precedence
+    if global.Enabled {
+        return global, nil
+    }
+
+    // Otherwise, check device override
     devPolicy, err := d.GetDevicePolicy(mac)
     if err != nil {
         return nil, err
     }
 
-    // Use device override if it exists, is enabled, and is explicitly set to a mode
     if devPolicy != nil && devPolicy.Enabled && devPolicy.Mode != ModeGlobal {
         return devPolicy, nil
     }
 
-    // Otherwise, fall back to the global policy
-    return d.GetGlobalPolicy()
+    // Fallback to Global (even if disabled, to provide a default mode)
+    return global, nil
 }
 
 // SetDevicePolicy creates or updates a device's override policy.
 func (d *DB) SetDevicePolicy(mac string, mode string, enabled bool) error {
     mac = NormalizeMAC(mac)
-    if mode != ModeAllowAlways && mode != ModeBlockAlways && mode != ModeSchedule && mode != ModeGlobal {
+    
+    // v2.0.0: Validate new modes
+    validModes := map[string]bool{
+        ModeGlobal:        true,
+        ModeAllowAlways:   true,
+        ModeBlockAlways:   true,
+        ModeScheduleBlock: true,
+        ModeScheduleAllow: true,
+    }
+    if !validModes[mode] {
         return fmt.Errorf("invalid policy mode: %s", mode)
     }
 
@@ -93,7 +111,14 @@ func (d *DB) SetDevicePolicy(mac string, mode string, enabled bool) error {
 
 // SetGlobalPolicy updates the global policy mode and enabled status.
 func (d *DB) SetGlobalPolicy(mode string, enabled bool) error {
-    if mode != ModeAllowAlways && mode != ModeBlockAlways && mode != ModeSchedule {
+    // v2.0.0: Validate new modes (Global cannot be set to ModeGlobal)
+    validModes := map[string]bool{
+        ModeAllowAlways:   true,
+        ModeBlockAlways:   true,
+        ModeScheduleBlock: true,
+        ModeScheduleAllow: true,
+    }
+    if !validModes[mode] {
         return fmt.Errorf("invalid global policy mode: %s", mode)
     }
 
@@ -133,8 +158,7 @@ func (d *DB) GetAllPolicies() ([]Policy, error) {
     return policies, nil
 }
 
-// DeleteDevicePolicy removes a device's override policy, causing it to inherit
-// the global policy.
+// DeleteDevicePolicy removes a device's override policy.
 func (d *DB) DeleteDevicePolicy(mac string) error {
     mac = NormalizeMAC(mac)
     _, err := d.db.Exec(`DELETE FROM policies WHERE mac = ?`, mac)
