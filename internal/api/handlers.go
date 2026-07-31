@@ -5,6 +5,7 @@ import (
     "strconv"
     "time"
 
+    "lias/internal/database"
     "lias/internal/policy"
 )
 
@@ -52,12 +53,5 @@ func (s *Server) applyPoliciesImmediately() {
 // normalizeMAC is a local helper to ensure MACs from URL paths are formatted correctly.
 func normalizeMAC(mac string) string {
     // Reuse the database normalization logic to keep it DRY
-    // In a real scenario, we might import a shared util package, 
-    // but database.NormalizeMAC is exported and perfectly fine to use here.
     return database.NormalizeMAC(mac)
 }
-
-// unused import prevention if we remove database later
-import (
-    "lias/internal/database"
-)
