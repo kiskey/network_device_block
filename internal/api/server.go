@@ -10,13 +10,13 @@ import (
     "crypto/sha256"
     "encoding/base64"
     "encoding/json"
-    "fmt"
     "net/http"
     "time"
 
     "lias/internal/database"
     "lias/internal/firewall"
     "lias/internal/logging"
+    "lias/internal/ui"
 )
 
 // ServerConfig holds configuration for the API server.
@@ -61,14 +61,10 @@ func NewServer(db *database.DB, fw *firewall.Firewall, cfg ServerConfig, logger 
 }
 
 // registerRoutes maps URLs to handler functions.
-// Using Go 1.22+ pattern routing (method + path).
 func (s *Server) registerRoutes() {
     // Auth routes (public)
     s.mux.HandleFunc("POST /api/login", s.handleLogin)
-    
-    // FIX: authMiddleware returns an http.Handler, so we must use s.mux.Handle, not HandleFunc
     s.mux.Handle("POST /api/logout", s.authMiddleware(s.handleLogout))
-    
     s.mux.HandleFunc("GET /api/auth/status", s.handleAuthStatus)
 
     // API routes (protected, require auth and CSRF)
@@ -104,9 +100,8 @@ func (s *Server) registerRoutes() {
     // Wrap API routes with Auth and CSRF middleware
     s.mux.Handle("/api/", s.csrfMiddleware(s.authMiddleware(api.ServeHTTP)))
 
-    // Serve embedded UI (registered in ui.go, will be implemented in Batch 10)
-    // For now, a simple placeholder to prevent panics if UI isn't embedded yet
-    s.mux.HandleFunc("/", s.handleUI)
+    // FIX: Serve the actual embedded UI from internal/ui
+    s.mux.Handle("/", ui.Handler())
 }
 
 // Start begins listening for HTTP/HTTPS requests.
@@ -167,15 +162,3 @@ func writeJSON(w http.ResponseWriter, code int, payload interface{}) {
 func writeError(w http.ResponseWriter, code int, msg string) {
     writeJSON(w, code, map[string]string{"error": msg})
 }
-
-// handleUI is a placeholder until the UI package is fully integrated in Batch 10.
-func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path != "/" {
-        http.NotFound(w, r)
-        return
-    }
-    fmt.Fprintf(w, "<html><body><h1>LIAS API Running</h1><p>UI will be embedded here.</p></body></html>")
-}
-
-// unused import prevention
-var _ = context.Background
