@@ -7,8 +7,8 @@ import (
 )
 
 // UpsertDevice inserts or updates a device record based on MAC address.
-// If the device exists, only CurrentIP, LastSeen, and Online are updated,
-// along with Hostname/Vendor if they were previously empty.
+// FIX: Always update hostname and vendor to the latest discovered values,
+// so we don't get stuck with "Unknown Device" forever.
 func (d *DB) UpsertDevice(mac, hostname, vendor, ip string, online bool) error {
     mac = NormalizeMAC(mac)
     if mac == "" {
@@ -18,7 +18,6 @@ func (d *DB) UpsertDevice(mac, hostname, vendor, ip string, online bool) error {
     now := time.Now().Unix()
     onlineInt := boolToInt(online)
 
-    // COALESCE keeps existing non-empty values if the new scan didn't find them
     _, err := d.db.Exec(`
         INSERT INTO devices (mac, hostname, friendly_name, vendor, current_ip, online, first_seen, last_seen)
         VALUES (?, ?, '', ?, ?, ?, ?, ?)
@@ -26,26 +25,11 @@ func (d *DB) UpsertDevice(mac, hostname, vendor, ip string, online bool) error {
             current_ip = excluded.current_ip,
             online = excluded.online,
             last_seen = excluded.last_seen,
-            hostname = CASE WHEN devices.hostname = '' THEN excluded.hostname ELSE devices.hostname END,
-            vendor = CASE WHEN devices.vendor = '' THEN excluded.vendor ELSE devices.vendor END
+            hostname = excluded.hostname,
+            vendor = excluded.vendor
     `, mac, hostname, vendor, ip, onlineInt, now, now)
     if err != nil {
         return fmt.Errorf("upsert device %s: %w", mac, err)
-    }
-    return nil
-}
-
-// UpdateDeviceSeen updates the last_seen timestamp and online status for a device.
-func (d *DB) UpdateDeviceSeen(mac string, online bool) error {
-    mac = NormalizeMAC(mac)
-    now := time.Now().Unix()
-    onlineInt := boolToInt(online)
-
-    _, err := d.db.Exec(`
-        UPDATE devices SET online = ?, last_seen = ? WHERE mac = ?
-    `, onlineInt, now, mac)
-    if err != nil {
-        return fmt.Errorf("update device seen %s: %w", mac, err)
     }
     return nil
 }
@@ -72,6 +56,7 @@ func (d *DB) GetDevice(mac string) (*Device, error) {
 }
 
 // GetAllDevices returns all known devices ordered by most recently seen.
+// FIX: Initialize slice with make() so JSON returns [] instead of null.
 func (d *DB) GetAllDevices() ([]Device, error) {
     rows, err := d.db.Query(`
         SELECT mac, hostname, friendly_name, vendor, current_ip, online, first_seen, last_seen
@@ -82,7 +67,7 @@ func (d *DB) GetAllDevices() ([]Device, error) {
     }
     defer rows.Close()
 
-    var devices []Device
+    devices := make([]Device, 0)
     for rows.Next() {
         var dev Device
         var onlineInt int
