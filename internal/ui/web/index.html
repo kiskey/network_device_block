@@ -114,6 +114,10 @@
         .item-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .item-chevron { color: var(--text-tertiary); margin-left: 8px; }
 
+        /* v2.2.0 Superseded UI */
+        .superseded { opacity: 0.5; }
+        .superseded-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; }
+
         .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
         .stat-card { background: var(--bg-color-elevated); padding: 20px; border-radius: var(--radius-card); box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
         .stat-label { color: var(--text-secondary); font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
@@ -133,9 +137,10 @@
         input:checked + .slider:before { transform: translateX(20px); }
         input:checked.red-toggle + .slider { background-color: var(--accent-red); }
 
+        /* Modal & Bottom Sheet */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: flex-end; z-index: 200; animation: fadeInBg 0.2s ease; }
         @keyframes fadeInBg { from { opacity: 0; } to { opacity: 1; } }
-        .modal-card { background: var(--bg-color-elevated); border-radius: 16px 16px 0 0; width: 100%; max-width: 480px; max-height: 85vh; padding: 16px; padding-bottom: 40px; transform: translateY(100%); animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; overflow-y: auto; }
+        .modal-card { background: var(--bg-color-elevated); border-radius: 16px 16px 0 0; width: 100%; max-width: 480px; max-height: 85vh; padding: 16px; padding-bottom: 40px; transform: translateY(100%); animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         @media (min-width: 768px) { .modal-overlay { align-items: center; padding: 20px; } .modal-card { border-radius: 14px; animation: scaleIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards; } }
         @keyframes slideUp { to { transform: translateY(0); } }
         @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -151,13 +156,24 @@
         .error-text { color: var(--accent-red); font-size: 14px; margin-top: 16px; }
         .switch-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 
+        /* v2.2.0 HIG Alert Dialog */
+        .alert-card { background: var(--bg-color-elevated); width: 300px; border-radius: 14px; overflow: hidden; animation: scaleIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) forwards; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .alert-content { padding: 24px; text-align: center; }
+        .alert-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+        .alert-message { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+        .alert-actions { display: flex; border-top: 0.5px solid var(--separator); }
+        .alert-btn { flex: 1; background: none; border: none; padding: 14px; font-size: 17px; color: var(--accent-blue); font-weight: 500; border-right: 0.5px solid var(--separator); }
+        .alert-btn:last-child { border-right: none; }
+        .alert-btn:active { background: var(--fill-tertiary); }
+        .alert-btn.bold { font-weight: 600; }
+
         /* v2.1.0 Visual Map */
         .map-container { display: flex; align-items: center; justify-content: space-between; background: var(--bg-color-elevated); padding: 24px; border-radius: var(--radius-card); margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
         .map-node { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
         .map-icon { font-size: 28px; background: var(--fill-tertiary); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .map-label { font-weight: 600; font-size: 14px; }
         .map-sublabel { font-size: 12px; color: var(--text-secondary); text-align: center; }
-        .map-line { height: 4px; flex: 2; border-radius: 2px; position: relative; margin: 0 8px; margin-bottom: 24px; /* align with icon center */ }
+        .map-line { height: 4px; flex: 2; border-radius: 2px; position: relative; margin: 0 8px; margin-bottom: 24px; }
         .map-line.allowed { background: var(--accent-green); }
         .map-line.blocked { background: var(--accent-red); }
         .map-line::after { content: ''; position: absolute; top: -4px; right: 0; width: 12px; height: 12px; border-radius: 50%; background: inherit; }
@@ -173,6 +189,7 @@
 </head>
 <body>
 
+    <!-- Auth View -->
     <div id="auth-view" class="auth-container hidden">
         <div class="auth-card">
             <div class="auth-icon">🔒</div>
@@ -184,6 +201,7 @@
         </div>
     </div>
 
+    <!-- Main App View -->
     <div id="app-view" class="hidden">
         <div class="app-container">
             <aside class="sidebar">
@@ -214,10 +232,22 @@
         </nav>
     </div>
 
+    <!-- Bottom Sheet Modal -->
     <div id="modal-overlay" class="modal-overlay hidden">
         <div class="modal-card">
             <div class="sheet-header"><h2 id="modal-title">Details</h2><button class="sheet-close" onclick="closeModal()">✕</button></div>
             <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- v2.2.0 HIG Alert Dialog -->
+    <div id="alert-overlay" class="modal-overlay hidden" style="z-index: 300; align-items: center;">
+        <div class="alert-card">
+            <div class="alert-content">
+                <div class="alert-title" id="alert-title">Title</div>
+                <div class="alert-message" id="alert-message">Message</div>
+            </div>
+            <div class="alert-actions" id="alert-actions"></div>
         </div>
     </div>
 
@@ -254,6 +284,25 @@
             } catch (e) { console.error(`API Error [${method} ${path}]:`, e); throw e; }
         }
 
+        // v2.2.0 HIG Alert System
+        function showAlert(title, message, btnText = 'OK') {
+            document.getElementById('alert-title').textContent = title;
+            document.getElementById('alert-message').textContent = message;
+            document.getElementById('alert-actions').innerHTML = `<button class="alert-btn bold" onclick="closeAlert()">${btnText}</button>`;
+            document.getElementById('alert-overlay').classList.remove('hidden');
+        }
+        function showConfirm(title, message, onConfirm, confirmText = 'Confirm', cancelText = 'Cancel') {
+            document.getElementById('alert-title').textContent = title;
+            document.getElementById('alert-message').textContent = message;
+            document.getElementById('alert-actions').innerHTML = `
+                <button class="alert-btn" onclick="closeAlert()">${cancelText}</button>
+                <button class="alert-btn bold" style="color: var(--accent-red);" id="alert-confirm-btn">${confirmText}</button>
+            `;
+            document.getElementById('alert-overlay').classList.remove('hidden');
+            document.getElementById('alert-confirm-btn').onclick = () => { closeAlert(); onConfirm(); };
+        }
+        function closeAlert() { document.getElementById('alert-overlay').classList.add('hidden'); }
+
         async function checkAuth() {
             try { authStatus = await api('GET', '/api/auth/status'); } catch (e) { authStatus = { auth_enabled: true, authenticated: false }; }
             if (authStatus.auth_enabled && !authStatus.authenticated) showAuthView(); else showAppView();
@@ -267,9 +316,6 @@
         setupNav();
         async function renderView() { const main = document.getElementById('main-content'); main.innerHTML = `<div class="loader">Loading...</div>`; try { if (currentView === 'dashboard') await renderDashboard(main); else if (currentView === 'devices') await renderDevices(main); else if (currentView === 'schedule') await renderSchedule(main); } catch (err) { main.innerHTML = `<div class="error-text">Error: ${err.message}</div>`; } }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Dashboard View (v2.1.0 - Visual Map & Grouped Lists)
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         async function renderDashboard(container) {
             const [dashData, devices, globalPolicy] = await Promise.all([
                 api('GET', '/api/dashboard'),
@@ -277,16 +323,11 @@
                 api('GET', '/api/policies/global')
             ]);
 
-            const groups = {
-                paused: [],
-                block: [],
-                allow: [],
-                sched_block: [],
-                sched_allow: []
-            };
+            const groups = { paused: [], block: [], allow: [], sched_block: [], sched_allow: [] };
+            const globalActive = globalPolicy.enabled;
 
-            if (globalPolicy.enabled) {
-                const g = { name: 'Global Policy (All Devices)', mode: globalPolicy.mode, isGlobal: true, schedules: [] };
+            if (globalActive) {
+                const g = { name: 'Global Policy (All Devices)', mode: globalPolicy.mode, isGlobal: true };
                 if (globalPolicy.mode === 'BLOCK_ALWAYS') groups.block.push(g);
                 else if (globalPolicy.mode === 'ALLOW_ALWAYS') groups.allow.push(g);
                 else if (globalPolicy.mode === 'SCHEDULE_BLOCK') groups.sched_block.push(g);
@@ -295,44 +336,32 @@
 
             devices.forEach(d => {
                 if (d.paused) { groups.paused.push(d); return; }
-                const mode = d.policy ? d.policy.mode : 'ALLOW_ALWAYS';
-                // If using global, and global is active, it's covered by global. Don't double-list.
-                if (mode === 'GLOBAL' && globalPolicy.enabled) return; 
+                const mode = d.policy ? d.policy.mode : 'GLOBAL';
                 
-                if (mode === 'BLOCK_ALWAYS') groups.block.push(d);
-                else if (mode === 'SCHEDULE_BLOCK') groups.sched_block.push(d);
-                else if (mode === 'SCHEDULE_ALLOW') groups.sched_allow.push(d);
-                else if (!globalPolicy.enabled) groups.allow.push(d); // Only show as allowed if global isn't handling it
+                // v2.2.0: Don't hide device rules if global is active. Just mark them as superseded.
+                let item = d; item.superseded = globalActive; 
+                
+                if (mode === 'BLOCK_ALWAYS') groups.block.push(item);
+                else if (mode === 'SCHEDULE_BLOCK') groups.sched_block.push(item);
+                else if (mode === 'SCHEDULE_ALLOW') groups.sched_allow.push(item);
+                else if (!globalActive) groups.allow.push(item); // Only show in "Allowed" if global isn't already catching it
             });
 
             const mapLineColor = dashData.blocked_devices > 0 ? 'blocked' : 'allowed';
 
             container.innerHTML = `
                 <div class="map-container">
-                    <div class="map-node">
-                        <div class="map-icon">🌐</div>
-                        <div class="map-label">Internet</div>
-                    </div>
+                    <div class="map-node"><div class="map-icon">🌐</div><div class="map-label">Internet</div></div>
                     <div class="map-line ${mapLineColor}"></div>
-                    <div class="map-node">
-                        <div class="map-icon">🛡️</div>
-                        <div class="map-label">Gateway</div>
-                        <div class="map-sublabel">${dashData.blocked_devices} Blocked</div>
-                    </div>
+                    <div class="map-node"><div class="map-icon">🛡️</div><div class="map-label">Gateway</div><div class="map-sublabel">${dashData.blocked_devices} Blocked</div></div>
                     <div class="map-line allowed"></div>
-                    <div class="map-node">
-                        <div class="map-icon">📱</div>
-                        <div class="map-label">LAN Devices</div>
-                        <div class="map-sublabel">${dashData.online_devices} Online</div>
-                    </div>
+                    <div class="map-node"><div class="map-icon">📱</div><div class="map-label">LAN Devices</div><div class="map-sublabel">${dashData.online_devices} Online</div></div>
                 </div>
-
                 <div class="dash-grid">
                     <div class="stat-card"><div class="stat-label">Gateway</div><div class="stat-value">${dashData.gateway_status}</div></div>
                     <div class="stat-card"><div class="stat-label">VPN</div><div class="stat-value">${dashData.vpn_status}</div></div>
                     <div class="stat-card"><div class="stat-label">Internet</div><div class="stat-value">${dashData.internet_status}</div></div>
                 </div>
-                
                 <div class="list-header">Active Network Rules</div>
                 <div id="rules-list"></div>
             `;
@@ -346,7 +375,7 @@
                         <div class="details-content">
                             <div class="card-group">
                                 ${items.map(item => `
-                                    <div class="card-item" onclick="${item.isGlobal ? `goToSchedule()` : `openDeviceModal('${item.mac}')`}">
+                                    <div class="card-item ${item.superseded ? 'superseded' : ''}" onclick="${item.isGlobal ? `goToSchedule()` : `openDeviceModal('${item.mac}')`}">
                                         <div class="item-info">
                                             <div class="item-title">
                                                 <span class="status-dot ${dotClass}"></span>
@@ -354,6 +383,7 @@
                                             </div>
                                             ${item.isGlobal ? '<div class="item-subtitle">Applies to all devices</div>' : `<div class="item-subtitle">${item.current_ip || 'No IP'} · ${item.mac}</div>`}
                                         </div>
+                                        ${item.superseded ? '<span class="superseded-badge">Superseded</span>' : ''}
                                         <div class="item-chevron">›</div>
                                     </div>
                                 `).join('')}
@@ -407,7 +437,7 @@
 
         async function toggleDevice(mac, isResumed) {
             try { await api('POST', `/api/devices/${mac}/toggle`); } 
-            catch (err) { alert('Failed: ' + err.message); await renderView(); }
+            catch (err) { showAlert('Failed', err.message); await renderView(); }
         }
 
         async function openDeviceModal(mac) {
@@ -415,10 +445,13 @@
             modal.classList.remove('hidden'); title.textContent = "Device Details"; content.innerHTML = `<div class="loader">Loading...</div>`;
             try {
                 const dev = await api('GET', `/api/devices/${mac}`);
+                const globalPolicy = await api('GET', '/api/policies/global`);
                 const policy = dev.policy || { mode: 'GLOBAL', enabled: false };
                 let schedules = [];
                 if (policy.mode === 'SCHEDULE_BLOCK' || policy.mode === 'SCHEDULE_ALLOW') { try { schedules = await api('GET', `/api/policies/${mac}/schedules`); } catch (e) {} }
+                
                 content.innerHTML = `
+                    ${globalPolicy.enabled ? '<div style="background: rgba(255,149,0,0.1); color: var(--accent-orange); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; font-weight: 600;">⚠️ Global Override is Active. This device rule is currently superseded.</div>' : ''}
                     <div class="form-group"><label class="form-label">Friendly Name</label><input type="text" id="dev-friendly" value="${dev.friendly_name || ''}" placeholder="Add a custom name"></div>
                     <div class="form-group"><label class="form-label">MAC Address</label><input type="text" value="${dev.mac}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);"></div>
                     <div class="form-group"><label class="form-label">Vendor</label><input type="text" value="${dev.vendor || 'Unknown'}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);"></div>
@@ -465,15 +498,16 @@
                     for (const row of rows) { const day = row.querySelector('.sched-day').value; const start = row.querySelector('.sched-start').value; const end = row.querySelector('.sched-end').value; if (start && end) { await api('POST', `/api/policies/${mac}/schedules`, { day_of_week: parseInt(day), start_time: start, end_time: end, enabled: true }); } }
                 }
                 closeModal(); await renderView();
-            } catch (err) { alert('Save failed: ' + err.message); }
+            } catch (err) { showAlert('Save Failed', err.message); }
         }
-        async function deleteDevice(mac) { if (confirm('Delete this device?')) { try { await api('DELETE', `/api/devices/${mac}`); closeModal(); await renderView(); } catch (e) { alert(e.message); } } }
+        async function deleteDevice(mac) {
+            showConfirm('Delete Device', 'Are you sure you want to delete this device and its rules?', async () => {
+                try { await api('DELETE', `/api/devices/${mac}`); closeModal(); await renderView(); } catch (e) { showAlert('Error', e.message); }
+            }, 'Delete', 'Cancel');
+        }
         function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
         document.getElementById('modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Global Schedule View (v2.1.0 - Decoupled Save Logic)
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         async function renderSchedule(container) {
             const policy = await api('GET', '/api/policies/global'); const schedules = await api('GET', '/api/schedules/global');
             container.innerHTML = `
@@ -493,7 +527,6 @@
                         </select>
                     </div>
                 </div>
-                <button class="btn-primary" style="margin-bottom: 32px;" onclick="saveGlobalPolicy()">Apply Global Policy</button>
                 
                 <div class="list-header">Global Schedule</div>
                 <div class="card-group" style="padding: 16px;">
@@ -501,7 +534,7 @@
                     <div id="schedules-list"></div>
                     <button class="btn-secondary" style="width: 100%; margin-top: 8px;" onclick="addGlobalScheduleRow()">+ Add Time Range</button>
                 </div>
-                <button class="btn-primary" style="margin-top: 24px;" onclick="saveGlobalSchedules()">Save Schedule Times</button>
+                <button class="btn-primary" style="margin-top: 24px;" onclick="saveGlobalConfig()">Save Global Configuration</button>
             `;
             const list = document.getElementById('schedules-list'); if (schedules.length === 0) addGlobalScheduleRow(); else schedules.forEach(s => addGlobalScheduleRow(s));
         }
@@ -511,31 +544,35 @@
             list.appendChild(div);
         }
         
-        // v2.1.0 Fix: ONLY saves the toggle and mode. Does not touch schedules.
-        async function saveGlobalPolicy() {
-            const mode = document.getElementById('global-mode').value; const enabled = document.getElementById('global-enabled').checked;
-            try { await api('PUT', '/api/policies/global', { mode: mode, enabled: enabled }); await renderView(); } 
-            catch (err) { alert('Error saving global policy: ' + err.message); await renderView(); }
-        }
-        
-        // v2.1.0 Fix: ONLY saves the schedule times. Validates mode first.
-        async function saveGlobalSchedules() {
+        // v2.2.0 Fix: Merged Policy and Schedule saving into one atomic function
+        async function saveGlobalConfig() {
             const mode = document.getElementById('global-mode').value;
-            if (mode !== 'SCHEDULE_BLOCK' && mode !== 'SCHEDULE_ALLOW') {
-                alert('Please set the Default Mode to "Scheduled Downtime" or "Scheduled Whitelist" and click "Apply Global Policy" first.');
-                return;
-            }
+            const enabled = document.getElementById('global-enabled').checked;
             
             try {
-                const existing = await api('GET', '/api/schedules/global');
-                for (const s of existing) { await api('DELETE', `/api/schedules/${s.id}`); }
-                const rows = document.querySelectorAll('#schedules-list .schedule-row');
-                for (const row of rows) {
-                    const day = row.querySelector('.sched-day').value; const start = row.querySelector('.sched-start').value; const end = row.querySelector('.sched-end').value;
-                    if (start && end) { await api('POST', '/api/schedules/global', { day_of_week: parseInt(day), start_time: start, end_time: end, enabled: true }); }
+                // 1. Save Policy Mode & Enabled state
+                await api('PUT', '/api/policies/global', { mode: mode, enabled: enabled });
+                
+                // 2. Save Schedules (only if mode is schedule)
+                if (mode === 'SCHEDULE_BLOCK' || mode === 'SCHEDULE_ALLOW') {
+                    const existing = await api('GET', '/api/schedules/global');
+                    for (const s of existing) { await api('DELETE', `/api/schedules/${s.id}`); }
+                    
+                    const rows = document.querySelectorAll('#schedules-list .schedule-row');
+                    for (const row of rows) {
+                        const day = row.querySelector('.sched-day').value; 
+                        const start = row.querySelector('.sched-start').value; 
+                        const end = row.querySelector('.sched-end').value;
+                        if (start && end) { 
+                            await api('POST', '/api/schedules/global', { day_of_week: parseInt(day), start_time: start, end_time: end, enabled: true }); 
+                        }
+                    }
                 }
+                
                 await renderView();
-            } catch (err) { alert('Failed to save schedule: ' + err.message); }
+            } catch (err) { 
+                showAlert('Error', err.message); 
+            }
         }
 
         document.addEventListener('DOMContentLoaded', checkAuth);
