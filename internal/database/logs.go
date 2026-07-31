@@ -1,7 +1,9 @@
 package database
 
 import (
+    "database/sql"
     "fmt"
+    "time"
 )
 
 // InsertLog creates a new audit log entry.
@@ -24,7 +26,6 @@ func (d *DB) InsertLog(category, message, mac, details string) error {
 }
 
 // GetLogs retrieves recent log entries, optionally filtered by MAC address.
-// Pass limit=0 for default (100), mac="" for all devices.
 func (d *DB) GetLogs(limit int, mac string) ([]LogEntry, error) {
     if limit <= 0 {
         limit = 100
