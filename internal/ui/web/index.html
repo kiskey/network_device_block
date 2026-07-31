@@ -380,6 +380,7 @@
         /* iOS Toggle Switch */
         .toggle-switch {
             position: relative;
+            display: inline-block;
             width: 51px;
             height: 31px;
             flex-shrink: 0;
@@ -798,7 +799,7 @@
             } else {
                 devices.forEach(d => {
                     const dotClass = d.online ? 'status-online' : 'status-offline';
-                    const isPaused = d.paused; // v2.0.0: Check pause state
+                    const isPaused = d.paused; 
                     html += `
                         <div class="card-item" onclick="openDeviceModal('${d.mac}')">
                             <div class="item-info">
@@ -808,10 +809,10 @@
                                 </div>
                                 <div class="item-subtitle">${d.current_ip || 'No IP'} · ${d.mac}</div>
                             </div>
-                            <div class="toggle-switch" onclick="event.stopPropagation()">
+                            <label class="toggle-switch" onclick="event.stopPropagation()">
                                 <input type="checkbox" id="toggle-${d.mac}" ${!isPaused ? 'checked' : ''} class="red-toggle" onchange="toggleDevice('${d.mac}', this.checked)">
                                 <span class="slider"></span>
-                            </div>
+                            </label>
                             <div class="item-chevron">›</div>
                         </div>
                     `;
@@ -1005,10 +1006,10 @@
                             <div class="item-title">Enable Global Override</div>
                             <div class="item-subtitle">If on, ignores all device rules.</div>
                         </div>
-                        <div class="toggle-switch">
+                        <label class="toggle-switch">
                             <input type="checkbox" id="global-enabled" ${policy.enabled?'checked':''} onchange="saveGlobalPolicy()">
                             <span class="slider"></span>
-                        </div>
+                        </label>
                     </div>
                     <div class="card-item" style="cursor: default;">
                         <div class="item-info">
@@ -1025,7 +1026,7 @@
                 
                 <div class="list-header">Global Schedule</div>
                 <div class="card-group" style="padding: 16px;">
-                    <p class="helper-text" style="margin-bottom: 12px;">Applies if mode is Scheduled.</p>
+                    <p class="helper-text" style="margin-bottom: 12px;">Applies if mode is Scheduled. Saving this will automatically set mode to Scheduled Downtime.</p>
                     <div id="schedules-list"></div>
                     <button class="btn-secondary" style="width: 100%; margin-top: 8px;" onclick="addGlobalScheduleRow()">+ Add Time Range</button>
                 </div>
@@ -1059,7 +1060,6 @@
             list.appendChild(div);
         }
 
-        // v2.0.3 Fix: Robust global policy save logic
         async function saveGlobalPolicy() {
             const modeSelect = document.getElementById('global-mode');
             const enabledCheckbox = document.getElementById('global-enabled');
@@ -1071,27 +1071,32 @@
             
             try {
                 await api('PUT', '/api/policies/global', { mode: mode, enabled: enabled });
-                
-                // Visual feedback: re-render dashboard stat if we are on it
-                if (currentView === 'dashboard') {
-                    await renderView();
-                }
+                await renderView();
             } catch (err) {
                 alert('Error saving global policy: ' + err.message);
-                // Revert UI state on failure
                 await renderView();
             }
         }
 
+        // v2.0.5 Fix: Deeply integrated save logic for Global Schedules
         async function saveGlobalSchedules() {
-            const rows = document.querySelectorAll('#schedules-list .schedule-row');
+            const modeSelect = document.getElementById('global-mode');
+            const enabledCheckbox = document.getElementById('global-enabled');
+            
+            if (!modeSelect || !enabledCheckbox) return;
             
             try {
+                // 1. Automatically set mode to SCHEDULE_BLOCK and enable it when saving a schedule
+                await api('PUT', '/api/policies/global', { mode: 'SCHEDULE_BLOCK', enabled: true });
+                
+                // 2. Delete existing global schedules
                 const existing = await api('GET', '/api/schedules/global');
                 for (const s of existing) {
                     await api('DELETE', `/api/schedules/${s.id}`);
                 }
                 
+                // 3. Add new schedule rows
+                const rows = document.querySelectorAll('#schedules-list .schedule-row');
                 for (const row of rows) {
                     const day = row.querySelector('.sched-day').value;
                     const start = row.querySelector('.sched-start').value;
@@ -1108,7 +1113,7 @@
                 
                 await renderView();
             } catch (err) {
-                alert('Failed: ' + err.message);
+                alert('Failed to save schedule: ' + err.message);
             }
         }
 
