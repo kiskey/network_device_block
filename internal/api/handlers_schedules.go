@@ -52,7 +52,7 @@ func (s *Server) handleAddGlobalSchedule(w http.ResponseWriter, r *http.Request)
     writeJSON(w, http.StatusCreated, sched)
 }
 
-// FIX: handleGetDeviceSchedules processes GET /api/policies/{mac}/schedules
+// handleGetDeviceSchedules processes GET /api/policies/{mac}/schedules
 func (s *Server) handleGetDeviceSchedules(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -78,7 +78,7 @@ func (s *Server) handleGetDeviceSchedules(w http.ResponseWriter, r *http.Request
     writeJSON(w, http.StatusOK, schedules)
 }
 
-// FIX: handleAddDeviceSchedule processes POST /api/policies/{mac}/schedules
+// handleAddDeviceSchedule processes POST /api/policies/{mac}/schedules
 func (s *Server) handleAddDeviceSchedule(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -98,8 +98,9 @@ func (s *Server) handleAddDeviceSchedule(w http.ResponseWriter, r *http.Request)
         return
     }
 
-    if p.Mode != database.ModeSchedule {
-        writeError(w, http.StatusBadRequest, "Device policy is not in SCHEDULE mode")
+    // v2.0.1 Fix: Validate against the new split schedule modes
+    if p.Mode != database.ModeScheduleBlock && p.Mode != database.ModeScheduleAllow {
+        writeError(w, http.StatusBadRequest, "Device policy is not in a SCHEDULE mode")
         return
     }
 
