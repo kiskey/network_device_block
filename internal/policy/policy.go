@@ -13,11 +13,7 @@ import (
 // DesiredState represents the computed lists of MAC addresses that should
 // be populated in the nftables sets.
 type DesiredState struct {
-    // BlockMACs is the list of MACs to put in the blocked_macs set.
-    BlockMACs []string
-    // OverrideMACs is the list of MACs to put in the override_allow set.
-    // (Useful for explicitly bypassing a global block, though the final
-    // 'accept' rule in nftables also handles unblocked traffic).
+    BlockMACs    []string
     OverrideMACs []string
 }
 
@@ -80,10 +76,12 @@ func ComputeDesiredState(db *database.DB, now time.Time) (*DesiredState, error) 
         case database.ModeAllowAlways:
             state.OverrideMACs = append(state.OverrideMACs, dev.MAC)
         case database.ModeSchedule:
-            if IsAllowedNow(schedules, now) {
-                state.OverrideMACs = append(state.OverrideMACs, dev.MAC)
-            } else {
+            // FIX: SCHEDULE means "Blocked during these times".
+            // If inside the schedule, block. If outside, allow.
+            if IsBlockedNow(schedules, now) {
                 state.BlockMACs = append(state.BlockMACs, dev.MAC)
+            } else {
+                state.OverrideMACs = append(state.OverrideMACs, dev.MAC)
             }
         }
     }
