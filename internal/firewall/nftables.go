@@ -1,8 +1,6 @@
 // Package firewall manages the application's dedicated nftables table.
-// It executes the native `nft` binary to ensure perfect compatibility.
-//
-// v2.0.1: Modified drop rule to only block Internet-bound traffic.
-// Local LAN traffic (DNS, NAS, Inter-VLAN) is allowed to pass to routing.
+// v2.0.2: Fixed rule verification to properly replace old broad drop rules
+// with the new LAN-aware drop rule.
 package firewall
 
 import (
@@ -107,20 +105,27 @@ func (fw *Firewall) VerifyOrCreate() error {
     }
 
     // 4. Verify/Create Rules
-    // We look for specific markers in the output to ensure our exact rules exist.
+    // v2.0.2: Check for exact rule signatures. If missing, flush and recreate.
     out, _ = fw.runNft("list", "chain", "netdev", TableName, ChainName)
 
-    if !strings.Contains(out, "@override_allow accept") {
+    hasOverride := strings.Contains(out, "@override_allow accept")
+    hasLanAwareDrop := strings.Contains(out, "ip daddr") // The signature of our new rule
+    hasAccept := strings.Contains(out, "accept")
+
+    if !hasOverride || !hasLanAwareDrop || !hasAccept {
+        fw.logger.Infof("Rules missing or outdated. Rebuilding chain rules...")
+        
+        // Flush the chain to remove old/broad rules
+        if _, err := fw.runNft("flush", "chain", "netdev", TableName, ChainName); err != nil {
+            return fmt.Errorf("flush chain: %v", err)
+        }
+        
+        // Add Override Rule
         if _, err := fw.runNft("add", "rule", "netdev", TableName, ChainName, "ether", "saddr", "@override_allow", "accept"); err != nil {
             return fmt.Errorf("add override rule: %v", err)
         }
-    }
-
-    // v2.0.1 Fix: Only drop Internet-bound traffic.
-    // This allows the device to talk to the gateway (DNS) and other LAN devices.
-    // It checks if the destination IP is NOT in the private RFC1918 ranges.
-    if !strings.Contains(out, "drop") {
-        fw.logger.Infof("Adding LAN-aware block rule...")
+        
+        // Add LAN-aware Block Rule
         ruleArgs := []string{
             "add", "rule", "netdev", TableName, ChainName,
             "ether", "saddr", "@blocked_macs",
@@ -130,11 +135,8 @@ func (fw *Firewall) VerifyOrCreate() error {
         if _, err := fw.runNft(ruleArgs...); err != nil {
             return fmt.Errorf("add lan-aware block rule: %v", err)
         }
-    }
-
-    // The 'accept' rule is technically redundant due to policy accept, 
-    // but we add it to strictly match the spec's logic diagram.
-    if !strings.Contains(out, "accept") {
+        
+        // Add Default Accept Rule
         if _, err := fw.runNft("add", "rule", "netdev", TableName, ChainName, "accept"); err != nil {
             return fmt.Errorf("add accept rule: %v", err)
         }
