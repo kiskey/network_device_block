@@ -6,26 +6,53 @@ import (
     "time"
 )
 
-// UpsertDevice inserts or updates a device record.
-func (d *DB) UpsertDevice(mac, hostname, vendor, ip string, online bool) error {
-    mac = NormalizeMAC(mac)
+// DeviceObservation is used by the discovery merge engine to update a device.
+type DeviceObservation struct {
+    MAC              string
+    Hostname         string
+    Vendor           string
+    Manufacturer     string
+    CurrentIP        string
+    DeviceType       string
+    OS               string
+    Services         string
+    DiscoverySources string
+    Confidence       int
+}
+
+// UpsertDevice inserts or updates a device record based on MAC address.
+func (d *DB) UpsertDevice(obs DeviceObservation) error {
+    mac := NormalizeMAC(obs.MAC)
     if mac == "" {
         return fmt.Errorf("cannot upsert device with empty MAC")
     }
 
     now := time.Now().Unix()
-    onlineInt := boolToInt(online)
 
+    // Use COALESCE logic to avoid overwriting higher-confidence data with empty strings
     _, err := d.db.Exec(`
-        INSERT INTO devices (mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen)
-        VALUES (?, ?, '', ?, ?, ?, 0, ?, ?)
+        INSERT INTO devices (
+            mac, hostname, friendly_name, vendor, current_ip, online, paused, 
+            first_seen, last_seen, device_type, manufacturer, os, services, 
+            discovery_sources, confidence
+        ) 
+        VALUES (?, ?, '', ?, ?, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(mac) DO UPDATE SET
-            current_ip = excluded.current_ip,
-            online = excluded.online,
+            current_ip = CASE WHEN excluded.current_ip != '' THEN excluded.current_ip ELSE devices.current_ip END,
+            online = 1,
             last_seen = excluded.last_seen,
-            hostname = excluded.hostname,
-            vendor = excluded.vendor
-    `, mac, hostname, vendor, ip, onlineInt, now, now)
+            hostname = CASE WHEN excluded.hostname != '' AND excluded.confidence >= devices.confidence THEN excluded.hostname ELSE devices.hostname END,
+            vendor = CASE WHEN excluded.vendor != '' THEN excluded.vendor ELSE devices.vendor END,
+            device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE devices.device_type END,
+            manufacturer = CASE WHEN excluded.manufacturer != '' THEN excluded.manufacturer ELSE devices.manufacturer END,
+            os = CASE WHEN excluded.os != '' THEN excluded.os ELSE devices.os END,
+            services = CASE WHEN excluded.services != '' THEN excluded.services ELSE devices.services END,
+            discovery_sources = excluded.discovery_sources,
+            confidence = CASE WHEN excluded.confidence > devices.confidence THEN excluded.confidence ELSE devices.confidence END
+    `, mac, obs.Hostname, obs.Vendor, obs.CurrentIP, now, now, 
+       obs.DeviceType, obs.Manufacturer, obs.OS, obs.Services, 
+       obs.DiscoverySources, obs.Confidence)
+    
     if err != nil {
         return fmt.Errorf("upsert device %s: %w", mac, err)
     }
@@ -36,13 +63,17 @@ func (d *DB) UpsertDevice(mac, hostname, vendor, ip string, online bool) error {
 func (d *DB) GetDevice(mac string) (*Device, error) {
     mac = NormalizeMAC(mac)
     row := d.db.QueryRow(`
-        SELECT mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen
+        SELECT mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen,
+               device_type, manufacturer, os, services, discovery_sources, confidence
         FROM devices WHERE mac = ?
     `, mac)
 
     var dev Device
     var onlineInt, pausedInt int
-    err := row.Scan(&dev.MAC, &dev.Hostname, &dev.FriendlyName, &dev.Vendor, &dev.CurrentIP, &onlineInt, &pausedInt, &dev.FirstSeen, &dev.LastSeen)
+    err := row.Scan(
+        &dev.MAC, &dev.Hostname, &dev.FriendlyName, &dev.Vendor, &dev.CurrentIP, &onlineInt, &pausedInt, &dev.FirstSeen, &dev.LastSeen,
+        &dev.DeviceType, &dev.Manufacturer, &dev.OS, &dev.Services, &dev.DiscoverySources, &dev.Confidence,
+    )
     if err != nil {
         if err == sql.ErrNoRows {
             return nil, nil
@@ -57,7 +88,8 @@ func (d *DB) GetDevice(mac string) (*Device, error) {
 // GetAllDevices returns all known devices ordered by most recently seen.
 func (d *DB) GetAllDevices() ([]Device, error) {
     rows, err := d.db.Query(`
-        SELECT mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen
+        SELECT mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen,
+               device_type, manufacturer, os, services, discovery_sources, confidence
         FROM devices ORDER BY online DESC, last_seen DESC
     `)
     if err != nil {
@@ -69,7 +101,10 @@ func (d *DB) GetAllDevices() ([]Device, error) {
     for rows.Next() {
         var dev Device
         var onlineInt, pausedInt int
-        if err := rows.Scan(&dev.MAC, &dev.Hostname, &dev.FriendlyName, &dev.Vendor, &dev.CurrentIP, &onlineInt, &pausedInt, &dev.FirstSeen, &dev.LastSeen); err != nil {
+        if err := rows.Scan(
+            &dev.MAC, &dev.Hostname, &dev.FriendlyName, &dev.Vendor, &dev.CurrentIP, &onlineInt, &pausedInt, &dev.FirstSeen, &dev.LastSeen,
+            &dev.DeviceType, &dev.Manufacturer, &dev.OS, &dev.Services, &dev.DiscoverySources, &dev.Confidence,
+        ); err != nil {
             return nil, fmt.Errorf("scan device: %w", err)
         }
         dev.Online = onlineInt == 1
