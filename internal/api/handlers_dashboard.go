@@ -1,6 +1,7 @@
 package api
 
 import (
+    "fmt"
     "net/http"
     "time"
 
@@ -9,19 +10,19 @@ import (
 
 // DashboardData represents the payload sent to the UI dashboard.
 type DashboardData struct {
-    GatewayStatus   string               `json:"gateway_status"`
-    InternetStatus  string               `json:"internet_status"`
-    VPNStatus       string               `json:"vpn_status"`
-    OnlineDevices   int                  `json:"online_devices"`
-    BlockedDevices  int                  `json:"blocked_devices"`
-    NextSchedule    *database.Schedule   `json:"next_schedule"`
-    DeviceCount     int                  `json:"device_count"`
+    GatewayStatus   string             `json:"gateway_status"`
+    InternetStatus  string             `json:"internet_status"`
+    VPNStatus       string             `json:"vpn_status"`
+    OnlineDevices   int                `json:"online_devices"`
+    BlockedDevices  int                `json:"blocked_devices"`
+    NextSchedule    *database.Schedule `json:"next_schedule"`
+    DeviceCount     int                `json:"device_count"`
 }
 
 // handleGetDashboard processes GET /api/dashboard
 func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
     data := DashboardData{
-        GatewayStatus:  "Online",  // App is running on the gateway
+        GatewayStatus:  "Online",    // App is running on the gateway
         InternetStatus: "Connected", // Assume connected if VPN is up
         VPNStatus:      "Connected", // TODO: Could ping a VPN interface IP for real status
     }
@@ -111,8 +112,3 @@ func nextOccurrence(s database.Schedule, now time.Time) time.Time {
 
     return nextTime
 }
-
-// unused import prevention
-import (
-    "fmt"
-)
