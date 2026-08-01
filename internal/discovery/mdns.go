@@ -1,15 +1,18 @@
 // Package discovery (mdns.go) implements a pure-Go mDNS (Multicast DNS) provider.
-// v3.1.1: Completely rewritten DNS parser to properly extract hostnames and services.
+// v3.2.0: Robust socket binding (SO_REUSEPORT) and proper Multicast Group joining.
 package discovery
 
 import (
+    "context"
     "encoding/binary"
     "fmt"
     "net"
     "strings"
+    "syscall"
     "time"
 
     "lias/internal/logging"
+    "golang.org/x/net/ipv4"
 )
 
 // MDNSProvider discovers devices via multicast DNS.
@@ -31,32 +34,51 @@ func (p *MDNSProvider) Name() string {
 func (p *MDNSProvider) Discover() ([]Observation, error) {
     multicastAddr := "224.0.0.251:5353"
     
-    // Standard query for all services (_services._dns-sd._udp.local)
     query := []byte{
-        0x00, 0x00, // Transaction ID
-        0x00, 0x00, // Flags (Standard Query)
-        0x00, 0x01, // Questions (1)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Answer, Authority, Additional RRs
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x09, '_', 's', 'e', 'r', 'v', 'i', 'c', 'e', 's',
         0x07, '_', 'd', 'n', 's', '-', 's', 'd',
         0x04, '_', 'u', 'd', 'p',
         0x05, 'l', 'o', 'c', 'a', 'l',
-        0x00, // Null terminator
-        0x00, 0x0c, // Type PTR
-        0x00, 0x01, // Class IN
+        0x00, 0x00, 0x0c, 0x00, 0x01,
     }
 
-    // Try to bind to port 5353. This is required to receive standard mDNS responses.
-    conn, err := net.ListenPacket("udp4", ":5353")
+    // Use ListenConfig to set SO_REUSEADDR and SO_REUSEPORT.
+    // This allows us to bind to port 5353 even if avahi-daemon is running.
+    lc := net.ListenConfig{
+        Control: func(network, address string, c syscall.RawConn) error {
+            var sockOptErr error
+            err := c.Control(func(fd uintptr) {
+                sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+                if sockOptErr != nil {
+                    return
+                }
+                // SO_REUSEPORT (15 on Linux)
+                sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, 15, 1)
+            })
+            if err != nil {
+                return err
+            }
+            return sockOptErr
+        },
+    }
+    
+    conn, err := lc.ListenPacket(context.Background(), "udp4", ":5353")
     if err != nil {
-        // Fallback to ephemeral port (might miss some responses, but safer)
-        p.logger.Debugf("mDNS: Could not bind to :5353 (%v). Falling back to ephemeral port.", err)
-        conn, err = net.ListenPacket("udp4", ":0")
+        p.logger.Warnf("mDNS: Could not bind to :5353 (%v). Falling back to ephemeral port.", err)
+        conn, err = lc.ListenPacket(context.Background(), "udp4", ":0")
         if err != nil {
             return nil, fmt.Errorf("mDNS listen failed: %w", err)
         }
     }
     defer conn.Close()
+
+    // Join the multicast group to ensure we receive responses
+    pConn := ipv4.NewPacketConn(conn)
+    ifaces, _ := net.Interfaces()
+    for _, iface := range ifaces {
+        pConn.JoinGroup(&iface, &net.UDPAddr{IP: net.IPv4(224, 0, 0, 251)})
+    }
 
     addr, err := net.ResolveUDPAddr("udp4", multicastAddr)
     if err != nil {
@@ -77,31 +99,29 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
         n, remoteAddr, err := conn.ReadFrom(buf)
         if err != nil {
             if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-                break // Timeout reached, stop listening
+                break
             }
-            break // Other error, stop listening
+            break
         }
 
-        // Parse the mDNS packet properly
         names := parseMDNSPacket(buf[:n])
         
         var hostname, service string
         for _, name := range names {
             lowerName := strings.ToLower(name)
-            // If it's a service type (e.g., _airplay._tcp.local)
             if strings.HasPrefix(lowerName, "_") {
                 if service == "" {
                     service = name
                 }
             } else if strings.HasSuffix(lowerName, ".local") {
-                // It's a hostname
                 if hostname == "" {
-                    hostname = strings.TrimSuffix(name, ".local")
+                    // Extract instance name (e.g., "Johns-iPhone" from "Johns-iPhone._airplay._tcp.local")
+                    parts := strings.SplitN(name, "._", 2)
+                    hostname = parts[0]
                 }
             }
         }
 
-        // We need at least a hostname or service to care about this packet
         if hostname != "" || service != "" {
             servicesStr := "mdns"
             if service != "" {
@@ -112,13 +132,12 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
                 IP:         remoteAddr.(*net.UDPAddr).IP.String(),
                 Hostname:   hostname,
                 SourceName: p.Name(),
-                Confidence: 95, // mDNS hostnames are very reliable
+                Confidence: 95,
                 Services:   servicesStr,
             })
         }
     }
 
-    p.logger.Debugf("mDNS discovered %d responses", len(observations))
     return observations, nil
 }
 
@@ -137,36 +156,30 @@ func parseMDNSPacket(data []byte) []string {
         return names
     }
 
-    // Skip header (12 bytes) and questions
     ptr := 12
     qdcount := int(binary.BigEndian.Uint16(data[4:6]))
     for q := 0; q < qdcount; q++ {
         _, next := parseDNSName(data, ptr)
-        ptr = next + 4 // Type + Class
+        ptr = next + 4
         if ptr >= len(data) {
             return names
         }
     }
 
-    // Parse Answer and Additional sections
     for a := 0; a < totalAnswers; a++ {
         name, next := parseDNSName(data, ptr)
         if name != "" {
             names = append(names, name)
         }
         
-        // Skip Type (2), Class (2), TTL (4)
         ptr = next + 8
         if ptr+2 > len(data) {
             break
         }
         
-        // Read RDLENGTH
         rdlength := int(binary.BigEndian.Uint16(data[ptr:ptr+2]))
         ptr += 2
         
-        // If it's a PTR record, the RDATA contains another DNS name we can parse
-        // Type PTR = 0x000C
         if ptr+2 <= len(data) {
             recType := binary.BigEndian.Uint16(data[next:next+2])
             if recType == 0x000C {
@@ -177,7 +190,6 @@ func parseMDNSPacket(data []byte) []string {
             }
         }
         
-        // Skip RDATA
         ptr += rdlength
         if ptr >= len(data) {
             break
@@ -188,7 +200,6 @@ func parseMDNSPacket(data []byte) []string {
 }
 
 // parseDNSName parses a DNS name starting at the given offset, handling compression pointers.
-// Returns the name and the offset of the byte immediately following the name.
 func parseDNSName(data []byte, offset int) (string, int) {
     var labels []string
     ptr := offset
@@ -202,7 +213,7 @@ func parseDNSName(data []byte, offset int) (string, int) {
         l := int(data[ptr])
         
         if l == 0 {
-            ptr++ // Skip null terminator
+            ptr++
             if !jumped {
                 finalOffset = ptr
             }
@@ -210,7 +221,6 @@ func parseDNSName(data []byte, offset int) (string, int) {
         }
         
         if l&0xC0 == 0xC0 {
-            // Compression pointer
             if ptr+1 >= len(data) {
                 break
             }
@@ -223,7 +233,6 @@ func parseDNSName(data []byte, offset int) (string, int) {
             continue
         }
         
-        // Normal label
         if ptr+1+l > len(data) {
             break
         }
