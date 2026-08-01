@@ -1,5 +1,6 @@
 // Package policy evaluates device and global policies against the current
 // time to determine the desired firewall state.
+// v4.0.0: Implements the "Never Block" (Immutable Infrastructure) zone.
 package policy
 
 import (
@@ -42,19 +43,27 @@ func ComputeDesiredState(db *database.DB, now time.Time) (*DesiredState, error) 
     }
 
     for _, dev := range devices {
-        // v2.0.0: Instant toggle pause takes absolute highest priority
+        // v4.0.0: IMMUTABLE INFRASTRUCTURE CHECK
+        // If a device is tagged as infrastructure, it is ALWAYS allowed.
+        // It ignores global policies, schedules, and instant pauses.
+        if dev.IsInfrastructure {
+            state.OverrideMACs = append(state.OverrideMACs, dev.MAC)
+            continue
+        }
+
+        // 1. Instant Pause (Highest priority for non-infrastructure)
         if dev.Paused {
             state.BlockMACs = append(state.BlockMACs, dev.MAC)
             continue
         }
 
-        // v2.0.0: If Global Policy is Enabled, it supersedes all device rules
+        // 2. Global Policy (If Enabled, supersedes device rules)
         if globalPolicy.Enabled {
             applyPolicy(dev.MAC, globalPolicy.Mode, globalSchedules, now, state)
             continue
         }
 
-        // Otherwise, evaluate Device Override (if exists and enabled)
+        // 3. Device Override (if exists and enabled)
         devPolicy, err := db.GetDevicePolicy(dev.MAC)
         if err != nil {
             return nil, fmt.Errorf("get policy for %s: %w", dev.MAC, err)
@@ -70,7 +79,7 @@ func ComputeDesiredState(db *database.DB, now time.Time) (*DesiredState, error) 
             }
             applyPolicy(dev.MAC, devPolicy.Mode, devSchedules, now, state)
         } else {
-            // Fallback if no active device policy: default to Allow
+            // Fallback: Allow
             state.OverrideMACs = append(state.OverrideMACs, dev.MAC)
         }
     }
@@ -86,14 +95,12 @@ func applyPolicy(mac string, mode string, schedules []database.Schedule, now tim
     case database.ModeAllowAlways:
         state.OverrideMACs = append(state.OverrideMACs, mac)
     case database.ModeScheduleBlock:
-        // Downtime: Block if inside schedule, Allow if outside
         if IsBlockedNow(schedules, now) {
             state.BlockMACs = append(state.BlockMACs, mac)
         } else {
             state.OverrideMACs = append(state.OverrideMACs, mac)
         }
     case database.ModeScheduleAllow:
-        // Whitelist: Allow if inside schedule, Block if outside
         if IsAllowedNow(schedules, now) {
             state.OverrideMACs = append(state.OverrideMACs, mac)
         } else {
