@@ -1,6 +1,5 @@
 // Package api implements the HTTP/HTTPS web server, REST API endpoints,
-// and serves the embedded web UI. It includes cookie-based authentication
-// and CSRF protection.
+// and serves the embedded web UI.
 package api
 
 import (
@@ -79,6 +78,9 @@ func (s *Server) registerRoutes() {
     api.HandleFunc("DELETE /api/devices/{mac}", s.handleDeleteDevice)
     api.HandleFunc("POST /api/devices/{mac}/toggle", s.handleToggleDevice)
     
+    // v4.0.0: Infrastructure Tagging Route
+    api.HandleFunc("POST /api/devices/{mac}/infrastructure", s.handleToggleInfrastructure)
+    
     // Policies
     api.HandleFunc("GET /api/policies", s.handleGetPolicies)
     api.HandleFunc("GET /api/policies/global", s.handleGetGlobalPolicy)
@@ -90,11 +92,8 @@ func (s *Server) registerRoutes() {
     // Schedules
     api.HandleFunc("GET /api/schedules/global", s.handleGetGlobalSchedules)
     api.HandleFunc("POST /api/schedules/global", s.handleAddGlobalSchedule)
-    
-    // FIX: Added routes for per-device custom schedules
     api.HandleFunc("GET /api/policies/{mac}/schedules", s.handleGetDeviceSchedules)
     api.HandleFunc("POST /api/policies/{mac}/schedules", s.handleAddDeviceSchedule)
-    
     api.HandleFunc("PUT /api/schedules/{id}", s.handleUpdateSchedule)
     api.HandleFunc("DELETE /api/schedules/{id}", s.handleDeleteSchedule)
     
