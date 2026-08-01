@@ -1,5 +1,5 @@
 // Package discovery (discovery.go) is the Discovery Manager.
-// v3.2.1: Passes interface name to protocol listeners for explicit IP binding.
+// v3.3.0: Added Bettercap API provider for high-fidelity passive sniffing.
 package discovery
 
 import (
@@ -37,9 +37,10 @@ func New(db *database.DB, logger *logging.Logger, ouiPath, dhcpPath, iface strin
     m.passiveProvs = []Provider{
         NewNetlinkProvider(iface, logger),
         NewDHCPProvider(dhcpPath, logger),
-        NewMDNSProvider(iface, logger),   // Pass iface
-        NewSSDPProvider(iface, logger),   // Pass iface
-        NewNBNSProvider(iface, logger),   // Pass iface
+        NewMDNSProvider(iface, logger),
+        NewSSDPProvider(iface, logger),
+        NewNBNSProvider(iface, logger),
+        NewBettercapProvider(logger), // <-- ADDED HERE
     }
 
     // Initialize Active Providers (10m interval)
