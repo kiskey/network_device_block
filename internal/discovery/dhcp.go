@@ -2,11 +2,10 @@ package discovery
 
 import (
     "bufio"
-    "fmt"
+    "net"
     "os"
     "regexp"
     "strings"
-    "net"
 
     "lias/internal/logging"
 )
@@ -137,4 +136,3 @@ func (p *DHCPProvider) parseDnsmasq(scanner *bufio.Scanner) []Observation {
     }
     return obs
 }
-
