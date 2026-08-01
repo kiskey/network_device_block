@@ -6,6 +6,7 @@ import (
     "os"
     "regexp"
     "strings"
+    "net"
 
     "lias/internal/logging"
 )
@@ -137,7 +138,3 @@ func (p *DHCPProvider) parseDnsmasq(scanner *bufio.Scanner) []Observation {
     return obs
 }
 
-// unused import prevention
-import (
-    "net"
-)
