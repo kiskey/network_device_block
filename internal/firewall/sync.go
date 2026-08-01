@@ -38,6 +38,7 @@ func (fw *Firewall) GetOverrideMACs() (map[string]struct{}, error) {
 
 // syncSet takes the desired list of MACs, diffs it against the current nftables
 // set, and applies only the additions and deletions.
+// v4.0.2: Filters multicast MACs and self-heals if the table is deleted externally.
 func (fw *Firewall) syncSet(setName string, desired []string) error {
     current, err := fw.getCurrentMACs(setName)
     if err != nil {
@@ -51,9 +52,12 @@ func (fw *Firewall) syncSet(setName string, desired []string) error {
     for _, macStr := range desired {
         macStr = strings.ToLower(macStr)
         
-        // v2.0.2: Filter out broadcast/empty MACs
+        // v4.0.2: Filter out broadcast and multicast MACs
         if macStr == "ff:ff:ff:ff:ff:ff" || macStr == "00:00:00:00:00:00" {
             continue
+        }
+        if strings.HasPrefix(macStr, "01:00:5e") || strings.HasPrefix(macStr, "33:33") {
+            continue // IPv4/IPv6 multicast MACs
         }
         
         if !macRegex.MatchString(macStr) {
@@ -68,8 +72,8 @@ func (fw *Firewall) syncSet(setName string, desired []string) error {
     }
 
     for macStr := range current {
-        // v2.0.2: Clean up broadcast MACs if they got stuck in the set previously
-        if macStr == "ff:ff:ff:ff:ff:ff" || macStr == "00:00:00:00:00:00" {
+        // Clean up any multicast MACs that might have gotten stuck previously
+        if strings.HasPrefix(macStr, "01:00:5e") || strings.HasPrefix(macStr, "33:33") {
             toDelete = append(toDelete, macStr)
             continue
         }
@@ -84,7 +88,22 @@ func (fw *Firewall) syncSet(setName string, desired []string) error {
 
     if len(toAdd) > 0 {
         elems := strings.Join(toAdd, ", ")
-        if _, err := fw.runNft("add", "element", "netdev", TableName, setName, "{ "+elems+" }"); err != nil {
+        _, err := fw.runNft("add", "element", "netdev", TableName, setName, "{ "+elems+" }")
+        
+        // v4.0.2 Self-Healing: If sing-box flushed the ruleset, rebuild and retry
+        if err != nil && strings.Contains(err.Error(), "No such file or directory") {
+            fw.mu.Unlock()
+            fw.logger.Warnf("nftables set %s missing. Rebuilding table...", setName)
+            rebuildErr := fw.VerifyOrCreate()
+            fw.mu.Lock()
+            if rebuildErr != nil {
+                return fmt.Errorf("rebuild nftables: %v", rebuildErr)
+            }
+            // Retry adding the elements
+            _, err = fw.runNft("add", "element", "netdev", TableName, setName, "{ "+elems+" }")
+        }
+        
+        if err != nil {
             return fmt.Errorf("add elements to %s: %v", setName, err)
         }
         fw.logger.Debugf("Added %d MACs to %s", len(toAdd), setName)
