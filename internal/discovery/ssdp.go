@@ -1,5 +1,5 @@
 // Package discovery (ssdp.go) implements a pure-Go SSDP (UPnP) provider.
-// It discovers Smart TVs, Routers, and Media Servers.
+// v3.2.1: Explicitly binds to the physical interface IP.
 package discovery
 
 import (
@@ -14,12 +14,13 @@ import (
 
 // SSDPProvider discovers devices via UPnP/SSDP.
 type SSDPProvider struct {
+    iface  string
     logger *logging.Logger
 }
 
 // NewSSDPProvider creates a new SSDPProvider.
-func NewSSDPProvider(logger *logging.Logger) *SSDPProvider {
-    return &SSDPProvider{logger: logger}
+func NewSSDPProvider(iface string, logger *logging.Logger) *SSDPProvider {
+    return &SSDPProvider{iface: iface, logger: logger}
 }
 
 // Name returns the provider name.
@@ -29,10 +30,8 @@ func (p *SSDPProvider) Name() string {
 
 // Discover sends an M-SEARCH query and listens for UPnP responses.
 func (p *SSDPProvider) Discover() ([]Observation, error) {
-    // SSDP multicast address
     multicastAddr := "239.255.255.250:1900"
     
-    // M-SEARCH packet
     query := "M-SEARCH * HTTP/1.1\r\n" +
         "HOST: 239.255.255.250:1900\r\n" +
         "MAN: \"ssdp:discover\"\r\n" +
@@ -70,7 +69,6 @@ func (p *SSDPProvider) Discover() ([]Observation, error) {
             break
         }
 
-        // Parse the HTTP-like response
         resp := string(buf[:n])
         scanner := bufio.NewScanner(strings.NewReader(resp))
         
@@ -85,14 +83,12 @@ func (p *SSDPProvider) Discover() ([]Observation, error) {
             }
         }
 
-        // If we got a server header, we can infer the device type
         if server != "" {
             observations = append(observations, Observation{
                 IP:         remoteAddr.(*net.UDPAddr).IP.String(),
-                Hostname:   "", // SSDP doesn't usually give hostnames directly
                 SourceName: p.Name(),
                 Confidence: 80,
-                Services:   "ssdp:" + server, // Pass the server string to the inference engine
+                Services:   "ssdp:" + server,
             })
         } else if location != "" {
             observations = append(observations, Observation{
