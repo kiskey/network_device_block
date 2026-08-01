@@ -21,6 +21,7 @@ type DeviceObservation struct {
 }
 
 // UpsertDevice inserts or updates a device record based on MAC address.
+// v3.2.0: Fixed logic to prevent overwriting known intelligence with empty/generic data.
 func (d *DB) UpsertDevice(obs DeviceObservation) error {
     mac := NormalizeMAC(obs.MAC)
     if mac == "" {
@@ -29,7 +30,6 @@ func (d *DB) UpsertDevice(obs DeviceObservation) error {
 
     now := time.Now().Unix()
 
-    // Use COALESCE logic to avoid overwriting higher-confidence data with empty strings
     _, err := d.db.Exec(`
         INSERT INTO devices (
             mac, hostname, friendly_name, vendor, current_ip, online, paused, 
@@ -41,9 +41,15 @@ func (d *DB) UpsertDevice(obs DeviceObservation) error {
             current_ip = CASE WHEN excluded.current_ip != '' THEN excluded.current_ip ELSE devices.current_ip END,
             online = 1,
             last_seen = excluded.last_seen,
-            hostname = CASE WHEN excluded.hostname != '' AND excluded.confidence >= devices.confidence THEN excluded.hostname ELSE devices.hostname END,
+            hostname = CASE 
+                WHEN excluded.hostname != '' AND excluded.hostname != 'Unknown Device' AND excluded.confidence >= devices.confidence THEN excluded.hostname 
+                ELSE devices.hostname 
+            END,
             vendor = CASE WHEN excluded.vendor != '' THEN excluded.vendor ELSE devices.vendor END,
-            device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE devices.device_type END,
+            device_type = CASE 
+                WHEN excluded.device_type != '' AND excluded.device_type != 'Generic' THEN excluded.device_type 
+                ELSE devices.device_type 
+            END,
             manufacturer = CASE WHEN excluded.manufacturer != '' THEN excluded.manufacturer ELSE devices.manufacturer END,
             os = CASE WHEN excluded.os != '' THEN excluded.os ELSE devices.os END,
             services = CASE WHEN excluded.services != '' THEN excluded.services ELSE devices.services END,
