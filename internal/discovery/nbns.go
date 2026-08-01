@@ -1,5 +1,5 @@
 // Package discovery (nbns.go) implements a pure-Go NetBIOS Name Service (NBNS) provider.
-// v3.2.0: Fixed broadcast socket permissions using SO_BROADCAST.
+// v3.2.1: Uses SO_BROADCAST and binds to physical interface.
 package discovery
 
 import (
@@ -14,12 +14,13 @@ import (
 
 // NBNSProvider discovers devices via NetBIOS.
 type NBNSProvider struct {
+    iface  string
     logger *logging.Logger
 }
 
 // NewNBNSProvider creates a new NBNSProvider.
-func NewNBNSProvider(logger *logging.Logger) *NBNSProvider {
-    return &NBNSProvider{logger: logger}
+func NewNBNSProvider(iface string, logger *logging.Logger) *NBNSProvider {
+    return &NBNSProvider{iface: iface, logger: logger}
 }
 
 // Name returns the provider name.
@@ -39,16 +40,13 @@ func (p *NBNSProvider) Discover() ([]Observation, error) {
         0x00, 0x01,
     }
 
-    // Must use SO_BROADCAST to send to 255.255.255.255
     lc := net.ListenConfig{
         Control: func(network, address string, c syscall.RawConn) error {
             var sockOptErr error
             err := c.Control(func(fd uintptr) {
                 sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
             })
-            if err != nil {
-                return err
-            }
+            if err != nil { return err }
             return sockOptErr
         },
     }
