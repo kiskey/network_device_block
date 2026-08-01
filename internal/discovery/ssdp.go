@@ -1,12 +1,14 @@
 // Package discovery (ssdp.go) implements a pure-Go SSDP (UPnP) provider.
-// v3.2.1: Explicitly binds to the physical interface IP.
+// v3.2.2: Uses SO_BINDTODEVICE to strictly bypass VPN interfaces.
 package discovery
 
 import (
     "bufio"
+    "context"
     "fmt"
     "net"
     "strings"
+    "syscall"
     "time"
 
     "lias/internal/logging"
@@ -39,7 +41,19 @@ func (p *SSDPProvider) Discover() ([]Observation, error) {
         "ST: ssdp:all\r\n" +
         "\r\n"
 
-    conn, err := net.ListenPacket("udp4", ":0")
+    // v3.2.2: Bind strictly to the device to bypass TUN
+    lc := net.ListenConfig{
+        Control: func(network, address string, c syscall.RawConn) error {
+            var sockOptErr error
+            err := c.Control(func(fd uintptr) {
+                sockOptErr = syscall.BindToDevice(int(fd), p.iface)
+            })
+            if err != nil { return err }
+            return sockOptErr
+        },
+    }
+
+    conn, err := lc.ListenPacket(context.Background(), "udp4", ":0")
     if err != nil {
         return nil, fmt.Errorf("ssdp listen failed: %w", err)
     }
