@@ -21,7 +21,8 @@ type BettercapProvider struct {
 // NewBettercapProvider creates a new BettercapProvider.
 func NewBettercapProvider(logger *logging.Logger) *BettercapProvider {
     return &BettercapProvider{
-        apiURL: "http://127.0.0.1:8081/api/session/", // Default Bettercap API endpoint
+        // FIX: Removed trailing slash to prevent 405 Method Not Allowed
+        apiURL: "http://127.0.0.1:8081/api/session",
         logger: logger,
         client: &http.Client{Timeout: 5 * time.Second},
     }
