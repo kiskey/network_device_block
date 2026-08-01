@@ -1,10 +1,12 @@
 // Package discovery (nbns.go) implements a pure-Go NetBIOS Name Service (NBNS) provider.
-// It discovers Windows PCs and older NAS devices by sending a Name Query.
+// v3.2.0: Fixed broadcast socket permissions using SO_BROADCAST.
 package discovery
 
 import (
+    "context"
     "fmt"
     "net"
+    "syscall"
     "time"
 
     "lias/internal/logging"
@@ -27,36 +29,33 @@ func (p *NBNSProvider) Name() string {
 
 // Discover sends a NetBIOS Name Query to the broadcast address and listens for responses.
 func (p *NBNSProvider) Discover() ([]Observation, error) {
-    // NetBIOS Name Service uses UDP port 137
     broadcastAddr := "255.255.255.255:137"
     
-    // A NetBIOS Name Service query for "*<00>" (Wildcard name)
-    // This asks for the name of the machine responding.
     query := []byte{
-        0x00, 0x00, // Transaction ID
-        0x00, 0x10, // Flags (Broadcast, Query)
-        0x00, 0x01, // Questions (1)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Answer, Authority, Additional RRs
-        0x20, // Length of name (32)
-        // Encoded "*\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0" using NetBIOS encoding
-        0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45,
-        0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45,
-        0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45,
-        0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45,
-        0x00, // Null terminator
-        0x00, 0x20, // Type NB (NetBIOS)
-        0x00, 0x01, // Class IN
+        0x00, 0x00, 0x00, 0x10, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x20, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45,
+        0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45,
+        0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x45, 0x00, 0x00, 0x20,
+        0x00, 0x01,
     }
 
-    // We need to listen on UDP 137 to receive replies.
-    // Note: Binding to port 137 might require root privileges or conflict with Samba.
-    conn, err := net.ListenPacket("udp4", ":137")
+    // Must use SO_BROADCAST to send to 255.255.255.255
+    lc := net.ListenConfig{
+        Control: func(network, address string, c syscall.RawConn) error {
+            var sockOptErr error
+            err := c.Control(func(fd uintptr) {
+                sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
+            })
+            if err != nil {
+                return err
+            }
+            return sockOptErr
+        },
+    }
+    
+    conn, err := lc.ListenPacket(context.Background(), "udp4", ":0")
     if err != nil {
-        // Fallback to ephemeral port (might miss responses if firewall blocks it)
-        conn, err = net.ListenPacket("udp4", ":0")
-        if err != nil {
-            return nil, fmt.Errorf("nbns listen failed: %w", err)
-        }
+        return nil, fmt.Errorf("nbns listen failed: %w", err)
     }
     defer conn.Close()
 
@@ -67,7 +66,6 @@ func (p *NBNSProvider) Discover() ([]Observation, error) {
 
     _, err = conn.WriteTo(query, addr)
     if err != nil {
-        // Some systems block broadcast writes on ephemeral ports
         p.logger.Debugf("NBNS broadcast write failed: %v", err)
         return nil, nil
     }
@@ -86,14 +84,9 @@ func (p *NBNSProvider) Discover() ([]Observation, error) {
             break
         }
 
-        // Parse the NetBIOS response
-        // A valid response should have the same Transaction ID and contain the name.
         if n > 56 {
-            // The name is usually at offset 56, and is 15 characters long.
             nameBytes := buf[56 : 56+15]
             name := string(nameBytes)
-            
-            // Trim trailing spaces
             name = fmt.Sprintf("%-15s", name)
             name = name[:15]
             
@@ -102,7 +95,7 @@ func (p *NBNSProvider) Discover() ([]Observation, error) {
                     IP:         remoteAddr.(*net.UDPAddr).IP.String(),
                     Hostname:   name,
                     SourceName: p.Name(),
-                    Confidence: 90, // High confidence for Windows names
+                    Confidence: 90,
                     Services:   "nbns",
                 })
             }
