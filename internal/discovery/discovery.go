@@ -1,5 +1,5 @@
 // Package discovery (discovery.go) is the Discovery Manager.
-// v3.1.0: Adds mDNS, SSDP, and NBNS to the passive loop for instant metadata.
+// v3.2.1: Passes interface name to protocol listeners for explicit IP binding.
 package discovery
 
 import (
@@ -34,13 +34,12 @@ func New(db *database.DB, logger *logging.Logger, ouiPath, dhcpPath, iface strin
     }
 
     // Initialize Passive Providers (Always on, 30s interval)
-    // v3.1.0: Added mDNS, SSDP, NBNS for instant device identification
     m.passiveProvs = []Provider{
         NewNetlinkProvider(iface, logger),
         NewDHCPProvider(dhcpPath, logger),
-        NewMDNSProvider(logger),
-        NewSSDPProvider(logger),
-        NewNBNSProvider(logger),
+        NewMDNSProvider(iface, logger),   // Pass iface
+        NewSSDPProvider(iface, logger),   // Pass iface
+        NewNBNSProvider(iface, logger),   // Pass iface
     }
 
     // Initialize Active Providers (10m interval)
