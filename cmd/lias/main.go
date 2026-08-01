@@ -1,7 +1,4 @@
 // Package main is the entry point for the LAN Internet Access Scheduler.
-// It is a single statically-linked Go binary that provides an Apple-inspired
-// web dashboard to control Internet access of LAN devices via MAC-based
-// schedules, using a dedicated nftables table (netdev family).
 package main
 
 import (
@@ -24,7 +21,7 @@ import (
 
 const (
     appName    = "lias"
-    appVersion = "1.0.0"
+    appVersion = "3.0.0"
 )
 
 // Config holds all application configuration parsed from flags and env.
@@ -56,7 +53,7 @@ func parseConfig() *Config {
     flag.StringVar(&cfg.HTTPSKey, "key", "", "TLS private key path")
     flag.StringVar(&cfg.OUIPath, "oui", "/etc/lias/oui.txt", "IEEE OUI vendor database path")
     flag.StringVar(&cfg.DHCPLeasesPath, "dhcp-leases", "/var/lib/dhcpd/dhcpd.leases", "DHCP leases file path")
-    flag.DurationVar(&cfg.DiscoveryInterval, "discovery-interval", 30*time.Second, "Device discovery interval")
+    flag.DurationVar(&cfg.DiscoveryInterval, "discovery-interval", 30*time.Second, "Passive device discovery interval")
     flag.DurationVar(&cfg.ScheduleInterval, "schedule-interval", 60*time.Second, "Scheduler evaluation interval")
     flag.DurationVar(&cfg.OfflineThreshold, "offline-threshold", 90*time.Second, "Device offline detection threshold")
     flag.IntVar(&cfg.LogRetentionDays, "log-retention", 30, "Log retention in days")
@@ -93,8 +90,6 @@ func main() {
     logger.Infof("✓ Database ready")
 
     // ── Initialize firewall manager ────────────────────────────────
-    // The application owns ONLY: table netdev lancontrol { blocked_macs, override_allow, chain ingress }
-    // It never touches inet filter, inet nat, VPN rules, routing, or NAT.
     fw, err := firewall.New(cfg.Interface, logger)
     if err != nil {
         logger.Fatalf("Firewall manager initialization failed: %v", err)
@@ -109,7 +104,6 @@ func main() {
     sched := scheduler.New(db, fw, logger)
 
     // ── Initial firewall synchronization ───────────────────────────
-    // Evaluate all policies and sync MAC sets atomically before serving traffic.
     if err := sched.RunOnce(); err != nil {
         logger.Fatalf("Initial firewall sync failed: %v", err)
     }
@@ -120,16 +114,19 @@ func main() {
     defer cancel()
 
     // ── Start device discovery ─────────────────────────────────────
-    // Merges ARP/neighbour table, DHCP leases, mDNS, and reverse DNS
-    // into one canonical device record keyed by MAC address.
-    disc := discovery.New(db, cfg.Interface, cfg.DHCPLeasesPath,
-        cfg.OUIPath, cfg.OfflineThreshold, logger)
-    go disc.Run(ctx, cfg.DiscoveryInterval)
-    logger.Infof("✓ Device discovery running (interval: %s)", cfg.DiscoveryInterval)
+    // v3.0.0: Use the new Discovery Manager signature
+    disc := discovery.New(db, logger, cfg.OUIPath, cfg.DHCPLeasesPath, cfg.Interface)
+    
+    // Determine active scan interval (default 10 minutes)
+    activeInterval := 10 * time.Minute
+    if val := db.GetIntSetting("nmap_interval", 600); val > 0 {
+        activeInterval = time.Duration(val) * time.Second
+    }
+    
+    go disc.Run(ctx, cfg.DiscoveryInterval, activeInterval)
+    logger.Infof("✓ Device discovery running (passive: %s, active: %s)", cfg.DiscoveryInterval, activeInterval)
 
     // ── Start scheduler ────────────────────────────────────────────
-    // Runs every minute: loads devices + policies, computes desired blocked
-    // MAC list, diffs against current nft set, applies only changed elements.
     go sched.Run(ctx, cfg.ScheduleInterval)
     logger.Infof("✓ Scheduler running (interval: %s)", cfg.ScheduleInterval)
 
@@ -160,7 +157,6 @@ func main() {
 
     cancel()
 
-    // Give ongoing operations up to 10 seconds to finish.
     shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer shutdownCancel()
 
@@ -168,16 +164,10 @@ func main() {
         logger.Errorf("Server shutdown error: %v", err)
     }
 
-    // NOTE: We intentionally do NOT flush or delete the nftables table/sets
-    // on shutdown. This ensures devices maintain their block/allow state
-    // across application restarts, VPN reconnections, or nftables reloads.
-    // The application will reconcile on next startup.
-
     logger.Infof("Shutdown complete. Goodbye.")
 }
 
-// runLogRetention periodically deletes log entries older than the configured
-// retention period (default: 30 days).
+// runLogRetention periodically deletes log entries older than the configured retention period.
 func runLogRetention(ctx context.Context, db *database.DB, days int, logger *logging.Logger) {
     ticker := time.NewTicker(1 * time.Hour)
     defer ticker.Stop()
@@ -194,7 +184,6 @@ func runLogRetention(ctx context.Context, db *database.DB, days int, logger *log
         }
     }
 
-    // Run once at startup to clean up after any downtime.
     cleanup()
 
     for {
@@ -207,5 +196,5 @@ func runLogRetention(ctx context.Context, db *database.DB, days int, logger *log
     }
 }
 
-// banner prints the ASCII banner (unused but available for --version).
+// unused import prevention
 var _ = fmt.Sprintf
