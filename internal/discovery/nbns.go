@@ -1,5 +1,5 @@
 // Package discovery (nbns.go) implements a pure-Go NetBIOS Name Service (NBNS) provider.
-// v3.2.1: Uses SO_BROADCAST and binds to physical interface.
+// v3.2.2: Uses SO_BINDTODEVICE and SO_BROADCAST.
 package discovery
 
 import (
@@ -40,11 +40,14 @@ func (p *NBNSProvider) Discover() ([]Observation, error) {
         0x00, 0x01,
     }
 
+    // v3.2.2: Bind strictly to device to bypass TUN, and enable broadcast
     lc := net.ListenConfig{
         Control: func(network, address string, c syscall.RawConn) error {
             var sockOptErr error
             err := c.Control(func(fd uintptr) {
                 sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
+                if sockOptErr != nil { return }
+                sockOptErr = syscall.BindToDevice(int(fd), p.iface)
             })
             if err != nil { return err }
             return sockOptErr
