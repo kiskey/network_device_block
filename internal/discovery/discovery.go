@@ -35,7 +35,6 @@ func New(db *database.DB, logger *logging.Logger, ouiPath, dhcpPath, iface strin
     }
 
     // Initialize Passive Providers (Always on, 30s interval)
-    // These will be fully implemented in Batch 3
     m.passiveProvs = []Provider{
         NewNetlinkProvider(iface, logger),
         NewDHCPProvider(dhcpPath, logger),
@@ -78,7 +77,7 @@ func (m *Manager) runPassive() {
     var observations []Observation
 
     for _, p := range m.passiveProvs {
-    .obs, err := p.Discover()
+        obs, err := p.Discover() // Fixed typo here
         if err != nil {
             m.logger.Warnf("%s discovery failed: %v", p.Name(), err)
             continue
