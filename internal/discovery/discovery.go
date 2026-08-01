@@ -1,170 +1,136 @@
-// Package discovery is responsible for identifying devices on the LAN.
-// It merges multiple sources (ARP/Netlink, DHCP leases, rDNS) into a canonical
-// device record. The primary key is ALWAYS the MAC address.
+// Package discovery (discovery.go) is the Discovery Manager.
+// It coordinates passive and active providers, runs the merge engine,
+// and updates the database.
 package discovery
 
 import (
     "context"
-    "sync"
     "time"
 
     "lias/internal/database"
-    "lias/internal/dns"
     "lias/internal/logging"
-    "lias/internal/vendor"
 )
 
-// DeviceInfo represents a raw device discovered by a Provider.
-type DeviceInfo struct {
-    MAC      string
-    IP       string
-    Hostname string
-}
-
-// Provider is an interface for discovery sources (ARP, DHCP, etc.)
+// Provider is an interface for all discovery sources.
 type Provider interface {
-    Discover() ([]DeviceInfo, error)
+    Discover() ([]Observation, error)
     Name() string
 }
 
-// Discovery manages the periodic scanning and merging of LAN devices.
-type Discovery struct {
+// Manager handles the periodic scanning and merging of LAN devices.
+type Manager struct {
     db           *database.DB
-    iface        string
-    dhcpPath     string
-    ouiPath      string
-    threshold    time.Duration
     logger       *logging.Logger
-    providers    []Provider
-    vendorLookup *vendor.Lookup
-    dnsResolver  *dns.Resolver
+    mergeEngine  *MergeEngine
+    passiveProvs []Provider
+    activeProvs  []Provider
 }
 
-// New initializes the Discovery manager.
-func New(db *database.DB, iface, dhcpPath, ouiPath string, threshold time.Duration, logger *logging.Logger) *Discovery {
-    d := &Discovery{
-        db:           db,
-        iface:        iface,
-        dhcpPath:     dhcpPath,
-        ouiPath:      ouiPath,
-        threshold:    threshold,
-        logger:       logger,
-        vendorLookup: vendor.New(ouiPath),
-        dnsResolver:  dns.New(),
+// New initializes the Discovery Manager.
+func New(db *database.DB, logger *logging.Logger, ouiPath, dhcpPath, iface string) *Manager {
+    m := &Manager{
+        db:          db,
+        logger:      logger,
+        mergeEngine: NewMergeEngine(),
     }
 
-    d.providers = []Provider{
-        NewARPProvider(iface, logger),
+    // Initialize Passive Providers (Always on, 30s interval)
+    // These will be fully implemented in Batch 3
+    m.passiveProvs = []Provider{
+        NewNetlinkProvider(iface, logger),
         NewDHCPProvider(dhcpPath, logger),
     }
 
-    return d
+    // Initialize Active Providers (10m interval)
+    m.activeProvs = []Provider{
+        NewNmapProvider(db, logger),
+    }
+
+    return m
 }
 
-// Run starts the periodic discovery loop.
-func (d *Discovery) Run(ctx context.Context, interval time.Duration) {
-    ticker := time.NewTicker(interval)
-    defer ticker.Stop()
+// Run starts the periodic discovery loops.
+func (m *Manager) Run(ctx context.Context, passiveInterval, activeInterval time.Duration) {
+    // Run once immediately
+    m.runPassive()
+    m.runActive()
 
-    d.discoverOnce()
+    passiveTicker := time.NewTicker(passiveInterval)
+    activeTicker := time.NewTicker(activeInterval)
+    defer passiveTicker.Stop()
+    defer activeTicker.Stop()
 
     for {
         select {
         case <-ctx.Done():
-            d.logger.Infof("Discovery stopped.")
+            m.logger.Infof("Discovery Manager stopped.")
             return
-        case <-ticker.C:
-            d.discoverOnce()
+        case <-passiveTicker.C:
+            m.runPassive()
+        case <-activeTicker.C:
+            m.runActive()
         }
     }
 }
 
-// discoverOnce queries all providers, merges the results by MAC address,
-// and updates the database. It also marks stale devices as offline.
-func (d *Discovery) discoverOnce() {
-    startTime := time.Now()
-    merged := make(map[string]DeviceInfo)
-    var mu sync.Mutex
+// runPassive collects observations from fast, passive sources and upserts them.
+func (m *Manager) runPassive() {
+    var observations []Observation
 
-    var wg sync.WaitGroup
-
-    for _, p := range d.providers {
-        wg.Add(1)
-        go func(provider Provider) {
-            defer wg.Done()
-            devices, err := provider.Discover()
-            if err != nil {
-                d.logger.Warnf("%s discovery failed: %v", provider.Name(), err)
-                return
-            }
-
-            mu.Lock()
-            for _, dev := range devices {
-                mac := database.NormalizeMAC(dev.MAC)
-                if mac == "" {
-                    continue
-                }
-
-                existing, exists := merged[mac]
-                if !exists {
-                    merged[mac] = DeviceInfo{
-                        MAC:      mac,
-                        IP:       dev.IP,
-                        Hostname: dev.Hostname,
-                    }
-                } else {
-                    if existing.IP == "" && dev.IP != "" {
-                        existing.IP = dev.IP
-                    }
-                    if existing.Hostname == "" && dev.Hostname != "" {
-                        existing.Hostname = dev.Hostname
-                    }
-                    merged[mac] = existing
-                }
-            }
-            mu.Unlock()
-        }(p)
+    for _, p := range m.passiveProvs {
+    .obs, err := p.Discover()
+        if err != nil {
+            m.logger.Warnf("%s discovery failed: %v", p.Name(), err)
+            continue
+        }
+        observations = append(observations, obs...)
     }
 
-    wg.Wait()
+    merged := m.mergeEngine.Merge(observations)
 
-    // Upsert all discovered devices
-    for mac, info := range merged {
-        vendorName := d.vendorLookup.Lookup(mac)
-        
-        // 1. Try to use hostname from DHCP
-        hostname := info.Hostname
-        
-        // 2. If empty, try Reverse DNS (which also checks OS hosts/mDNS)
-        if hostname == "" && info.IP != "" {
-            hostname = d.dnsResolver.LookupAddr(info.IP)
-        }
-        
-        // 3. If still empty, use Vendor name
-        if hostname == "" && vendorName != "" {
-            hostname = vendorName + " Device"
-        }
-        
-        // 4. Fallback to IP
-        if hostname == "" && info.IP != "" {
-            hostname = "Device " + info.IP
-        }
-        
-        // 5. Absolute fallback
-        if hostname == "" {
-            hostname = "Unknown Device"
-        }
-
-        if err := d.db.UpsertDevice(mac, hostname, vendorName, info.IP, true); err != nil {
-            d.logger.Errorf("Failed upserting device %s: %v", mac, err)
+    for _, devObs := range merged {
+        InferDeviceType(&devObs)
+        if err := m.db.UpsertDevice(devObs); err != nil {
+            m.logger.Errorf("Failed upserting device %s: %v", devObs.MAC, err)
         }
     }
 
     // Mark devices not seen recently as offline
-    cutoff := time.Now().Add(-d.threshold).Unix()
-    if _, err := d.db.MarkStaleDevicesOffline(cutoff); err != nil {
-        d.logger.Errorf("Failed marking stale devices offline: %v", err)
+    cutoff := time.Now().Add(-90 * time.Second).Unix()
+    if _, err := m.db.MarkStaleDevicesOffline(cutoff); err != nil {
+        m.logger.Errorf("Failed marking stale devices offline: %v", err)
+    }
+}
+
+// runActive collects observations from slow, active sources (like Nmap)
+// and merges them to enrich existing device metadata.
+func (m *Manager) runActive() {
+    var observations []Observation
+
+    for _, p := range m.activeProvs {
+        obs, err := p.Discover()
+        if err != nil {
+            m.logger.Warnf("%s discovery failed: %v", p.Name(), err)
+            continue
+        }
+        observations = append(observations, obs...)
     }
 
-    d.logger.Debugf("Discovery cycle completed in %s. %d active devices.", time.Since(startTime), len(merged))
+    if len(observations) == 0 {
+        return
+    }
+
+    merged := m.mergeEngine.Merge(observations)
+
+    for _, devObs := range merged {
+        InferDeviceType(&devObs)
+        if err := m.db.UpsertDevice(devObs); err != nil {
+            m.logger.Errorf("Failed upserting device %s: %v", devObs.MAC, err)
+        }
+    }
+}
+
+// ForceRefresh can be called by the API to trigger an immediate active scan.
+func (m *Manager) ForceRefresh() {
+    go m.runActive()
 }
