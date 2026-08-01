@@ -93,7 +93,7 @@ func (s *Server) handleDeleteDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleToggleDevice processes POST /api/devices/{mac}/toggle
-// v2.0.0: Toggles the temporary 'Paused' state, preserving underlying schedules.
+// v3.0.0: Uses the new DeviceObservation struct for UpsertDevice
 func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -103,7 +103,16 @@ func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
 
     dev, _ := s.db.GetDevice(mac)
     if dev == nil {
-        s.db.UpsertDevice(mac, "Unknown Device", "", "", false)
+        // Create a minimal observation to upsert the device if it doesn't exist
+        obs := database.DeviceObservation{
+            MAC:        mac,
+            Hostname:   "Unknown Device",
+            Confidence: 0,
+        }
+        if err := s.db.UpsertDevice(obs); err != nil {
+            writeError(w, http.StatusInternalServerError, "Failed to create device")
+            return
+        }
         dev, _ = s.db.GetDevice(mac)
     }
 
