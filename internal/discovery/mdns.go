@@ -1,5 +1,5 @@
 // Package discovery (mdns.go) implements a pure-Go mDNS (Multicast DNS) provider.
-// v3.2.0: Robust socket binding (SO_REUSEPORT) and proper Multicast Group joining.
+// v3.2.1: Explicitly binds to the physical interface IP to bypass TUN routing.
 package discovery
 
 import (
@@ -17,12 +17,13 @@ import (
 
 // MDNSProvider discovers devices via multicast DNS.
 type MDNSProvider struct {
+    iface  string
     logger *logging.Logger
 }
 
 // NewMDNSProvider creates a new MDNSProvider.
-func NewMDNSProvider(logger *logging.Logger) *MDNSProvider {
-    return &MDNSProvider{logger: logger}
+func NewMDNSProvider(iface string, logger *logging.Logger) *MDNSProvider {
+    return &MDNSProvider{iface: iface, logger: logger}
 }
 
 // Name returns the provider name.
@@ -43,29 +44,50 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
         0x00, 0x00, 0x0c, 0x00, 0x01,
     }
 
-    // Use ListenConfig to set SO_REUSEADDR and SO_REUSEPORT.
-    // This allows us to bind to port 5353 even if avahi-daemon is running.
+    // Resolve the IPv4 address of the physical interface (e.g., eth0 -> 192.168.1.1)
+    // This ensures we bind to the LAN IP, not the TUN IP.
+    ifaceObj, err := net.InterfaceByName(p.iface)
+    if err != nil {
+        return nil, fmt.Errorf("mDNS: interface %s not found: %w", p.iface, err)
+    }
+
+    addrs, err := ifaceObj.Addrs()
+    if err != nil {
+        return nil, fmt.Errorf("mDNS: could not get addresses for %s: %w", p.iface, err)
+    }
+
+    var lanIP net.IP
+    for _, addr := range addrs {
+        if ipNet, ok := addr.(*net.IPNet); ok {
+            if ipNet.IP.To4() != nil && !ipNet.IP.IsLoopback() {
+                lanIP = ipNet.IP
+                break
+            }
+        }
+    }
+
+    if lanIP == nil {
+        return nil, fmt.Errorf("mDNS: no suitable IPv4 address found on interface %s", p.iface)
+    }
+
+    // Bind explicitly to the LAN IP and port 5353
     lc := net.ListenConfig{
         Control: func(network, address string, c syscall.RawConn) error {
             var sockOptErr error
             err := c.Control(func(fd uintptr) {
                 sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
-                if sockOptErr != nil {
-                    return
-                }
-                // SO_REUSEPORT (15 on Linux)
-                sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, 15, 1)
+                if sockOptErr != nil { return }
+                sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, 15, 1) // SO_REUSEPORT
             })
-            if err != nil {
-                return err
-            }
+            if err != nil { return err }
             return sockOptErr
         },
     }
     
-    conn, err := lc.ListenPacket(context.Background(), "udp4", ":5353")
+    bindAddr := fmt.Sprintf("%s:5353", lanIP.String())
+    conn, err := lc.ListenPacket(context.Background(), "udp4", bindAddr)
     if err != nil {
-        p.logger.Warnf("mDNS: Could not bind to :5353 (%v). Falling back to ephemeral port.", err)
+        p.logger.Warnf("mDNS: Could not bind to %s (%v). Falling back.", bindAddr, err)
         conn, err = lc.ListenPacket(context.Background(), "udp4", ":0")
         if err != nil {
             return nil, fmt.Errorf("mDNS listen failed: %w", err)
@@ -73,12 +95,9 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
     }
     defer conn.Close()
 
-    // Join the multicast group to ensure we receive responses
+    // Join multicast group strictly on the physical interface
     pConn := ipv4.NewPacketConn(conn)
-    ifaces, _ := net.Interfaces()
-    for _, iface := range ifaces {
-        pConn.JoinGroup(&iface, &net.UDPAddr{IP: net.IPv4(224, 0, 0, 251)})
-    }
+    pConn.JoinGroup(ifaceObj, &net.UDPAddr{IP: net.IPv4(224, 0, 0, 251)})
 
     addr, err := net.ResolveUDPAddr("udp4", multicastAddr)
     if err != nil {
@@ -110,12 +129,9 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
         for _, name := range names {
             lowerName := strings.ToLower(name)
             if strings.HasPrefix(lowerName, "_") {
-                if service == "" {
-                    service = name
-                }
+                if service == "" { service = name }
             } else if strings.HasSuffix(lowerName, ".local") {
                 if hostname == "" {
-                    // Extract instance name (e.g., "Johns-iPhone" from "Johns-iPhone._airplay._tcp.local")
                     parts := strings.SplitN(name, "._", 2)
                     hostname = parts[0]
                 }
@@ -124,9 +140,7 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
 
         if hostname != "" || service != "" {
             servicesStr := "mdns"
-            if service != "" {
-                servicesStr = "mdns:" + service
-            }
+            if service != "" { servicesStr = "mdns:" + service }
 
             observations = append(observations, Observation{
                 IP:         remoteAddr.(*net.UDPAddr).IP.String(),
@@ -144,38 +158,28 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
 // parseMDNSPacket extracts all DNS names from the Answer and Additional RR sections.
 func parseMDNSPacket(data []byte) []string {
     var names []string
-    if len(data) < 12 {
-        return names
-    }
+    if len(data) < 12 { return names }
 
     ancount := int(binary.BigEndian.Uint16(data[6:8]))
     arcount := int(binary.BigEndian.Uint16(data[10:12]))
     totalAnswers := ancount + arcount
 
-    if totalAnswers == 0 {
-        return names
-    }
+    if totalAnswers == 0 { return names }
 
     ptr := 12
     qdcount := int(binary.BigEndian.Uint16(data[4:6]))
     for q := 0; q < qdcount; q++ {
         _, next := parseDNSName(data, ptr)
         ptr = next + 4
-        if ptr >= len(data) {
-            return names
-        }
+        if ptr >= len(data) { return names }
     }
 
     for a := 0; a < totalAnswers; a++ {
         name, next := parseDNSName(data, ptr)
-        if name != "" {
-            names = append(names, name)
-        }
+        if name != "" { names = append(names, name) }
         
         ptr = next + 8
-        if ptr+2 > len(data) {
-            break
-        }
+        if ptr+2 > len(data) { break }
         
         rdlength := int(binary.BigEndian.Uint16(data[ptr:ptr+2]))
         ptr += 2
@@ -184,16 +188,12 @@ func parseMDNSPacket(data []byte) []string {
             recType := binary.BigEndian.Uint16(data[next:next+2])
             if recType == 0x000C {
                 ptrName, _ := parseDNSName(data, ptr)
-                if ptrName != "" {
-                    names = append(names, ptrName)
-                }
+                if ptrName != "" { names = append(names, ptrName) }
             }
         }
         
         ptr += rdlength
-        if ptr >= len(data) {
-            break
-        }
+        if ptr >= len(data) { break }
     }
 
     return names
@@ -207,43 +207,30 @@ func parseDNSName(data []byte, offset int) (string, int) {
     finalOffset := 0
 
     for {
-        if ptr >= len(data) {
-            break
-        }
+        if ptr >= len(data) { break }
         l := int(data[ptr])
         
         if l == 0 {
             ptr++
-            if !jumped {
-                finalOffset = ptr
-            }
+            if !jumped { finalOffset = ptr }
             break
         }
         
         if l&0xC0 == 0xC0 {
-            if ptr+1 >= len(data) {
-                break
-            }
+            if ptr+1 >= len(data) { break }
             newOffset := ((l & 0x3F) << 8) | int(data[ptr+1])
-            if !jumped {
-                finalOffset = ptr + 2
-            }
+            if !jumped { finalOffset = ptr + 2 }
             ptr = newOffset
             jumped = true
             continue
         }
         
-        if ptr+1+l > len(data) {
-            break
-        }
+        if ptr+1+l > len(data) { break }
         
         labels = append(labels, string(data[ptr+1:ptr+1+l]))
         ptr += 1 + l
     }
 
-    if len(labels) == 0 {
-        return "", finalOffset
-    }
-    
+    if len(labels) == 0 { return "", finalOffset }
     return strings.Join(labels, "."), finalOffset
 }
