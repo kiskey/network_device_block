@@ -1,5 +1,5 @@
-// Package database (models.go) defines the core data structures used
-// throughout the application. v3.0.0 adds device intelligence fields.
+// Package database (models.go) defines the core data structures.
+// v4.0.0: Adds IsInfrastructure flag for the "Never Block" zone.
 package database
 
 // Device represents a discovered LAN device.
@@ -15,13 +15,16 @@ type Device struct {
     Paused       bool    `json:"paused"`
     Policy       *Policy `json:"policy,omitempty"`
 
+    // v4.0.0: Immutable Infrastructure flag
+    IsInfrastructure bool `json:"is_infrastructure"`
+
     // v3.0.0 Device Intelligence Fields
-    DeviceType       string `json:"device_type"`       // e.g., "Mobile", "TV", "Computer"
-    Manufacturer     string `json:"manufacturer"`      // e.g., "Apple", "Samsung"
-    OS               string `json:"os"`                // e.g., "iOS 16", "Linux 5.x"
-    Services         string `json:"services"`          // JSON string of services/ports
-    DiscoverySources string `json:"discovery_sources"` // e.g., "netlink,nmap,dhcp"
-    Confidence       int    `json:"confidence"`        // 0-100
+    DeviceType       string `json:"device_type"`
+    Manufacturer     string `json:"manufacturer"`
+    OS               string `json:"os"`
+    Services         string `json:"services"`
+    DiscoverySources string `json:"discovery_sources"`
+    Confidence       int    `json:"confidence"`
 }
 
 // Policy represents either the global policy (MAC is empty) or a device override.
