@@ -1,5 +1,5 @@
 // Package database provides the SQLite persistence layer.
-// v3.0.0 adds migrations for device intelligence fields.
+// v3.2.0: Fixed upsert logic to prevent overwriting known intelligence with empty data.
 package database
 
 import (
@@ -180,11 +180,9 @@ func (d *DB) seedDefaults() error {
         "offline_threshold":  "90",
         "log_retention_days": "30",
         "dashboard_name":     "LAN Access Scheduler",
-        
-        // v3.0.0: Nmap settings
         "nmap_enabled":       "true",
-        "nmap_interval":      "600", // 10 minutes
-        "nmap_subnet":        "192.168.1.0/24", // Default, user should change
+        "nmap_interval":      "600",
+        "nmap_subnet":        "192.168.1.0/24",
     }
 
     for k, v := range defaults {
