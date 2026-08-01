@@ -1,5 +1,5 @@
 // Package database provides the SQLite persistence layer.
-// v3.2.0: Fixed upsert logic to prevent overwriting known intelligence with empty data.
+// v4.0.0: Adds migration for is_infrastructure column.
 package database
 
 import (
@@ -143,6 +143,9 @@ func (d *DB) migrate() error {
         `ALTER TABLE devices ADD COLUMN services TEXT NOT NULL DEFAULT '';`,
         `ALTER TABLE devices ADD COLUMN discovery_sources TEXT NOT NULL DEFAULT '';`,
         `ALTER TABLE devices ADD COLUMN confidence INTEGER NOT NULL DEFAULT 0;`,
+
+        // v4.0.0: Migration for Infrastructure flag
+        `ALTER TABLE devices ADD COLUMN is_infrastructure INTEGER NOT NULL DEFAULT 0;`,
     }
 
     for _, stmt := range statements {
