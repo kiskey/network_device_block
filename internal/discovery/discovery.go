@@ -1,6 +1,5 @@
 // Package discovery (discovery.go) is the Discovery Manager.
-// It coordinates passive and active providers, runs the merge engine,
-// and updates the database.
+// v3.1.0: Adds mDNS, SSDP, and NBNS to the passive loop for instant metadata.
 package discovery
 
 import (
@@ -35,9 +34,13 @@ func New(db *database.DB, logger *logging.Logger, ouiPath, dhcpPath, iface strin
     }
 
     // Initialize Passive Providers (Always on, 30s interval)
+    // v3.1.0: Added mDNS, SSDP, NBNS for instant device identification
     m.passiveProvs = []Provider{
         NewNetlinkProvider(iface, logger),
         NewDHCPProvider(dhcpPath, logger),
+        NewMDNSProvider(logger),
+        NewSSDPProvider(logger),
+        NewNBNSProvider(logger),
     }
 
     // Initialize Active Providers (10m interval)
@@ -77,7 +80,7 @@ func (m *Manager) runPassive() {
     var observations []Observation
 
     for _, p := range m.passiveProvs {
-        obs, err := p.Discover() // Fixed typo here
+        obs, err := p.Discover()
         if err != nil {
             m.logger.Warnf("%s discovery failed: %v", p.Name(), err)
             continue
@@ -102,7 +105,6 @@ func (m *Manager) runPassive() {
 }
 
 // runActive collects observations from slow, active sources (like Nmap)
-// and merges them to enrich existing device metadata.
 func (m *Manager) runActive() {
     var observations []Observation
 
