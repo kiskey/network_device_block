@@ -102,6 +102,7 @@
             .mobile-header { display: flex; justify-content: space-between; align-items: center; }
             .content-area { margin-left: 0; padding: 20px 16px 80px 16px; }
             .tabbar { display: flex; }
+            .dash-grid { grid-template-columns: repeat(2, 1fr); } /* v4.0.0 Mobile Grid */
         }
 
         .list-header { text-transform: uppercase; font-size: 13px; font-weight: 500; color: var(--text-secondary); padding: 0 16px 8px 16px; letter-spacing: 0.02em; }
@@ -116,6 +117,7 @@
 
         .superseded { opacity: 0.5; }
         .superseded-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; }
+        .infra-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-blue); background: rgba(0, 122, 255, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; display: flex; align-items: center; gap: 4px; }
 
         .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
         .stat-card { background: var(--bg-color-elevated); padding: 20px; border-radius: var(--radius-card); box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
@@ -135,11 +137,11 @@
         input:checked + .slider { background-color: var(--accent-green); }
         input:checked + .slider:before { transform: translateX(20px); }
         input:checked.red-toggle + .slider { background-color: var(--accent-red); }
+        input:disabled + .slider { opacity: 0.3; cursor: not-allowed; }
 
-        /* Modal & Bottom Sheet */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: flex-end; z-index: 200; animation: fadeInBg 0.2s ease; }
         @keyframes fadeInBg { from { opacity: 0; } to { opacity: 1; } }
-        .modal-card { background: var(--bg-color-elevated); border-radius: 16px 16px 0 0; width: 100%; max-width: 480px; max-height: 85vh; padding: 16px; padding-bottom: 40px; transform: translateY(100%); animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .modal-card { background: var(--bg-color-elevated); border-radius: 16px 16px 0 0; width: 100%; max-width: 480px; max-height: 90vh; padding: 16px; padding-bottom: 40px; transform: translateY(100%); animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         @media (min-width: 768px) { .modal-overlay { align-items: center; padding: 20px; } .modal-card { border-radius: 14px; animation: scaleIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards; } }
         @keyframes slideUp { to { transform: translateY(0); } }
         @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -149,13 +151,15 @@
         .form-group { margin-bottom: 24px; }
         .form-label { display: block; text-transform: uppercase; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; padding-left: 4px; }
         .helper-text { font-size: 12px; color: var(--text-secondary); margin-top: 4px; padding-left: 4px; }
-        .schedule-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
-        .schedule-row select, .schedule-row input { margin-bottom: 0; flex: 1; padding: 10px; }
+        
+        .schedule-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+        .schedule-row select { margin-bottom: 0; flex: 1 1 100px; padding: 10px; }
+        .schedule-row input { margin-bottom: 0; flex: 1 1 80px; padding: 10px; }
+        
         .loader { text-align: center; padding: 40px; color: var(--text-secondary); font-weight: 500; }
         .error-text { color: var(--accent-red); font-size: 14px; margin-top: 16px; }
         .switch-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 
-        /* HIG Alert Dialog */
         .alert-card { background: var(--bg-color-elevated); width: 300px; border-radius: 14px; overflow: hidden; animation: scaleIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) forwards; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .alert-content { padding: 24px; text-align: center; }
         .alert-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
@@ -166,7 +170,6 @@
         .alert-btn:active { background: var(--fill-tertiary); }
         .alert-btn.bold { font-weight: 600; }
 
-        /* v2.3.0 Network Visual Map */
         .network-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; margin-bottom: 32px; }
         .tile-card { background: var(--bg-color-elevated); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; position: relative; transition: transform 0.1s; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
         .tile-card:active { transform: scale(0.97); }
@@ -176,7 +179,6 @@
         .tile-badge { position: absolute; top: 8px; right: 8px; font-size: 8px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 3px 6px; border-radius: 4px; }
         .tile-superseded { opacity: 0.6; }
 
-        /* Collapsible Lists */
         .details-group { margin-bottom: 24px; }
         .details-summary { font-size: 14px; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.02em; padding: 14px 16px; background: var(--bg-color-elevated); border-radius: var(--radius-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04); list-style: none; }
         .details-summary::-webkit-details-marker { display: none; }
@@ -311,9 +313,6 @@
         setupNav();
         async function renderView() { const main = document.getElementById('main-content'); main.innerHTML = `<div class="loader">Loading...</div>`; try { if (currentView === 'dashboard') await renderDashboard(main); else if (currentView === 'network') await renderNetwork(main); else if (currentView === 'devices') await renderDevices(main); else if (currentView === 'schedule') await renderSchedule(main); } catch (err) { main.innerHTML = `<div class="error-text">Error: ${err.message}</div>`; } }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Dashboard View (Cleaned up v2.3.0)
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         async function renderDashboard(container) {
             const [dashData, devices, globalPolicy] = await Promise.all([
                 api('GET', '/api/dashboard'),
@@ -321,7 +320,7 @@
                 api('GET', '/api/policies/global')
             ]);
 
-            const groups = { paused: [], block: [], allow: [], sched_block: [], sched_allow: [] };
+            const groups = { infra: [], paused: [], block: [], allow: [], sched_block: [], sched_allow: [] };
             const globalActive = globalPolicy.enabled;
 
             if (globalActive) {
@@ -333,6 +332,7 @@
             }
 
             devices.forEach(d => {
+                if (d.is_infrastructure) { groups.infra.push(d); return; }
                 if (d.paused) { groups.paused.push(d); return; }
                 const mode = d.policy ? d.policy.mode : 'GLOBAL';
                 let item = d; item.superseded = globalActive; 
@@ -385,6 +385,7 @@
             };
 
             rulesList.innerHTML = `
+                ${renderGroup('Infrastructure (Never Block)', groups.infra, 'status-online')}
                 ${renderGroup('Paused (Instant Block)', groups.paused, 'status-paused')}
                 ${renderGroup('Always Blocked', groups.block, 'status-blocked')}
                 ${renderGroup('Scheduled Downtime', groups.sched_block, 'status-blocked')}
@@ -393,9 +394,6 @@
             `;
         }
 
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Network View (v2.3.0 Visual Map)
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         function getDeviceType(hostname, vendor) {
             const h = (hostname + ' ' + vendor).toLowerCase();
             if (h.includes('iphone') || h.includes('android') || h.includes('pixel') || h.includes('samsung') || h.includes('galaxy') || h.includes('phone') || h.includes('oneplus')) return 'mobile';
@@ -446,6 +444,7 @@
                         let actualMode = d.policy ? d.policy.mode : 'GLOBAL';
                         if (globalPolicy.enabled) actualMode = globalPolicy.mode;
                         if (d.paused) actualMode = 'BLOCK_ALWAYS'; 
+                        if (d.is_infrastructure) actualMode = 'ALLOW_ALWAYS'; // Override UI status
                         
                         let statusColor = 'status-online';
                         let statusText = 'Allowed';
@@ -468,8 +467,9 @@
                         }
 
                         html += `
-                            <div class="tile-card ${globalPolicy.enabled && !d.paused ? 'tile-superseded' : ''}" onclick="openDeviceModal('${d.mac}')">
-                                ${globalPolicy.enabled && !d.paused ? '<div class="tile-badge">Global</div>' : ''}
+                            <div class="tile-card ${globalPolicy.enabled && !d.paused && !d.is_infrastructure ? 'tile-superseded' : ''}" onclick="openDeviceModal('${d.mac}')">
+                                ${d.is_infrastructure ? '<div class="tile-badge" style="color:var(--accent-blue); background:rgba(0,122,255,0.1)">Infra</div>' : ''}
+                                ${globalPolicy.enabled && !d.paused && !d.is_infrastructure ? '<div class="tile-badge">Global</div>' : ''}
                                 <div class="tile-icon">${getDeviceIcon(type)}</div>
                                 <div class="tile-name">${d.friendly_name || d.hostname || 'Unknown'}</div>
                                 <div class="tile-status">
@@ -507,10 +507,11 @@
                                 <div class="item-title"><span class="status-dot ${dotClass}"></span>${d.friendly_name || d.hostname || 'Unknown Device'}</div>
                                 <div class="item-subtitle">${d.current_ip || 'No IP'} · ${d.mac}</div>
                             </div>
+                            ${d.is_infrastructure ? '<span class="infra-badge">🔒 Infra</span>' : `
                             <label class="toggle-switch" onclick="event.stopPropagation()">
                                 <input type="checkbox" id="toggle-${d.mac}" ${!isPaused ? 'checked' : ''} class="red-toggle" onchange="toggleDevice('${d.mac}', this.checked)">
                                 <span class="slider"></span>
-                            </label>
+                            </label>`}
                             <div class="item-chevron">›</div>
                         </div>
                     `;
@@ -534,32 +535,71 @@
                 let schedules = [];
                 if (policy.mode === 'SCHEDULE_BLOCK' || policy.mode === 'SCHEDULE_ALLOW') { try { schedules = await api('GET', `/api/policies/${mac}/schedules`); } catch (e) {} }
                 
+                const isInfra = dev.is_infrastructure;
+                
                 content.innerHTML = `
-                    ${globalPolicy.enabled ? '<div style="background: rgba(255,149,0,0.1); color: var(--accent-orange); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; font-weight: 600;">⚠️ Global Override is Active. This device rule is currently superseded.</div>' : ''}
-                    <div class="form-group"><label class="form-label">Friendly Name</label><input type="text" id="dev-friendly" value="${dev.friendly_name || ''}" placeholder="Add a custom name"></div>
-                    <div class="form-group"><label class="form-label">MAC Address</label><input type="text" value="${dev.mac}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);"></div>
-                    <div class="form-group"><label class="form-label">Vendor</label><input type="text" value="${dev.vendor || 'Unknown'}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);"></div>
                     <div class="form-group">
-                        <label class="form-label">Policy Mode</label>
-                        <select id="dev-mode" onchange="toggleDeviceScheduleEditor()">
-                            <option value="GLOBAL" ${policy.mode==='GLOBAL'?'selected':''}>Use Global Policy</option>
-                            <option value="ALLOW_ALWAYS" ${policy.mode==='ALLOW_ALWAYS'?'selected':''}>Allow Always</option>
-                            <option value="BLOCK_ALWAYS" ${policy.mode==='BLOCK_ALWAYS'?'selected':''}>Block Always</option>
-                            <option value="SCHEDULE_BLOCK" ${policy.mode==='SCHEDULE_BLOCK'?'selected':''}>Scheduled Downtime (Block during)</option>
-                            <option value="SCHEDULE_ALLOW" ${policy.mode==='SCHEDULE_ALLOW'?'selected':''}>Scheduled Whitelist (Allow during)</option>
-                        </select>
+                        <label class="form-label">Friendly Name</label>
+                        <input type="text" id="dev-friendly" value="${dev.friendly_name || ''}" placeholder="Add a custom name" ${isInfra ? 'disabled' : ''}>
                     </div>
-                    <div id="dev-schedule-editor" class="hidden">
-                        <label class="form-label">Schedule Times</label>
-                        <div id="dev-schedules-list"></div>
-                        <button class="btn-secondary" style="width: 100%; margin-top: 8px;" onclick="addDeviceScheduleRow()">+ Add Time Range</button>
+                    <div class="form-group">
+                        <label class="form-label">MAC Address</label>
+                        <input type="text" value="${dev.mac}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);">
                     </div>
-                    <button class="btn-primary" style="margin-top: 24px;" onclick="saveDeviceChanges('${dev.mac}')">Save Changes</button>
-                    <button class="btn-danger" onclick="deleteDevice('${dev.mac}')">Delete Device</button>
+                    <div class="form-group">
+                        <label class="form-label">Vendor</label>
+                        <input type="text" value="${dev.vendor || 'Unknown'}" readonly style="background: var(--fill-tertiary); color: var(--text-secondary);">
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="switch-container" style="padding: 12px; background: var(--fill-tertiary); border-radius: 8px; margin-bottom: 0;">
+                            <div>
+                                <div class="item-title" style="font-size: 15px;">Infrastructure (Never Block)</div>
+                                <div class="item-subtitle">Bypasses all global & scheduled rules.</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="dev-infra" ${isInfra?'checked':''} onchange="saveDeviceInfrastructure('${dev.mac}', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="dev-policy-section" class="${isInfra ? 'superseded' : ''}">
+                        ${globalPolicy.enabled && !isInfra ? '<div style="background: rgba(255,149,0,0.1); color: var(--accent-orange); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; font-weight: 600;">⚠️ Global Override is Active. This device rule is currently superseded.</div>' : ''}
+                        <div class="form-group">
+                            <label class="form-label">Policy Mode</label>
+                            <select id="dev-mode" onchange="toggleDeviceScheduleEditor()" ${isInfra ? 'disabled' : ''}>
+                                <option value="GLOBAL" ${policy.mode==='GLOBAL'?'selected':''}>Use Global Policy</option>
+                                <option value="ALLOW_ALWAYS" ${policy.mode==='ALLOW_ALWAYS'?'selected':''}>Allow Always</option>
+                                <option value="BLOCK_ALWAYS" ${policy.mode==='BLOCK_ALWAYS'?'selected':''}>Block Always</option>
+                                <option value="SCHEDULE_BLOCK" ${policy.mode==='SCHEDULE_BLOCK'?'selected':''}>Scheduled Downtime (Block during)</option>
+                                <option value="SCHEDULE_ALLOW" ${policy.mode==='SCHEDULE_ALLOW'?'selected':''}>Scheduled Whitelist (Allow during)</option>
+                            </select>
+                        </div>
+                        <div id="dev-schedule-editor" class="hidden">
+                            <label class="form-label">Schedule Times</label>
+                            <div id="dev-schedules-list"></div>
+                            <button class="btn-secondary" style="width: 100%; margin-top: 8px;" onclick="addDeviceScheduleRow()">+ Add Time Range</button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-primary" style="margin-top: 24px;" onclick="saveDeviceChanges('${dev.mac}')" ${isInfra ? 'disabled' : ''}>Save Changes</button>
+                    <button class="btn-danger" onclick="deleteDevice('${dev.mac}')" ${isInfra ? 'disabled' : ''}>Delete Device</button>
                 `;
                 if (schedules.length > 0) { schedules.forEach(s => addDeviceScheduleRow(s)); }
                 if (policy.mode === 'SCHEDULE_BLOCK' || policy.mode === 'SCHEDULE_ALLOW') { document.getElementById('dev-schedule-editor').classList.remove('hidden'); if (schedules.length === 0) addDeviceScheduleRow(); }
             } catch (err) { content.innerHTML = `<div class="error-text">${err.message}</div>`; }
+        }
+
+        async function saveDeviceInfrastructure(mac, enabled) {
+            try {
+                await api('POST', `/api/devices/${mac}/infrastructure`, { enabled: enabled });
+                // Re-render the modal to lock/unlock fields
+                await openDeviceModal(mac);
+            } catch (err) { 
+                showAlert('Error', err.message); 
+                await openDeviceModal(mac);
+            }
         }
 
         function toggleDeviceScheduleEditor() {
