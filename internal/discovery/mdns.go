@@ -1,5 +1,5 @@
 // Package discovery (mdns.go) implements a pure-Go mDNS (Multicast DNS) provider.
-// v3.2.1: Explicitly binds to the physical interface IP to bypass TUN routing.
+// v3.2.2: Uses SO_BINDTODEVICE to strictly bypass VPN (tun) interfaces.
 package discovery
 
 import (
@@ -44,33 +44,12 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
         0x00, 0x00, 0x0c, 0x00, 0x01,
     }
 
-    // Resolve the IPv4 address of the physical interface (e.g., eth0 -> 192.168.1.1)
-    // This ensures we bind to the LAN IP, not the TUN IP.
     ifaceObj, err := net.InterfaceByName(p.iface)
     if err != nil {
         return nil, fmt.Errorf("mDNS: interface %s not found: %w", p.iface, err)
     }
 
-    addrs, err := ifaceObj.Addrs()
-    if err != nil {
-        return nil, fmt.Errorf("mDNS: could not get addresses for %s: %w", p.iface, err)
-    }
-
-    var lanIP net.IP
-    for _, addr := range addrs {
-        if ipNet, ok := addr.(*net.IPNet); ok {
-            if ipNet.IP.To4() != nil && !ipNet.IP.IsLoopback() {
-                lanIP = ipNet.IP
-                break
-            }
-        }
-    }
-
-    if lanIP == nil {
-        return nil, fmt.Errorf("mDNS: no suitable IPv4 address found on interface %s", p.iface)
-    }
-
-    // Bind explicitly to the LAN IP and port 5353
+    // v3.2.2: Bind strictly to the device. This bypasses the TUN routing table entirely.
     lc := net.ListenConfig{
         Control: func(network, address string, c syscall.RawConn) error {
             var sockOptErr error
@@ -78,16 +57,18 @@ func (p *MDNSProvider) Discover() ([]Observation, error) {
                 sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
                 if sockOptErr != nil { return }
                 sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, 15, 1) // SO_REUSEPORT
+                if sockOptErr != nil { return }
+                // SO_BINDTODEVICE - the magic flag to bypass VPN
+                sockOptErr = syscall.BindToDevice(int(fd), p.iface)
             })
             if err != nil { return err }
             return sockOptErr
         },
     }
     
-    bindAddr := fmt.Sprintf("%s:5353", lanIP.String())
-    conn, err := lc.ListenPacket(context.Background(), "udp4", bindAddr)
+    conn, err := lc.ListenPacket(context.Background(), "udp4", ":5353")
     if err != nil {
-        p.logger.Warnf("mDNS: Could not bind to %s (%v). Falling back.", bindAddr, err)
+        p.logger.Warnf("mDNS: Could not bind to :5353 (%v). Falling back.", err)
         conn, err = lc.ListenPacket(context.Background(), "udp4", ":0")
         if err != nil {
             return nil, fmt.Errorf("mDNS listen failed: %w", err)
