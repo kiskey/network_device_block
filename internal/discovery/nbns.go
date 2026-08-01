@@ -3,7 +3,6 @@
 package discovery
 
 import (
-    "encoding/binary"
     "fmt"
     "net"
     "time"
