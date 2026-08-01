@@ -54,7 +54,8 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        body { font-family: var(--font-family); background-color: var(--bg-color); color: var(--text-primary); min-height: 100vh; transition: background-color 0.3s ease, color 0.3s ease; overflow-x: hidden; }
+        html, body { max-width: 100%; overflow-x: hidden; }
+        body { font-family: var(--font-family); background-color: var(--bg-color); color: var(--text-primary); min-height: 100vh; transition: background-color 0.3s ease, color 0.3s ease; }
         .hidden { display: none !important; }
         button { font-family: var(--font-family); cursor: pointer; }
 
@@ -97,12 +98,26 @@
         .tab-item.active { color: var(--accent-blue); }
         .tab-item.active svg { stroke: var(--accent-blue); }
         
+        /* v4.0.3 Mobile Responsive Overhaul */
         @media (max-width: 768px) {
             .sidebar { display: none; }
             .mobile-header { display: flex; justify-content: space-between; align-items: center; }
-            .content-area { margin-left: 0; padding: 20px 16px 80px 16px; }
+            .content-area { margin-left: 0; padding: 20px 16px 100px 16px; }
             .tabbar { display: flex; }
-            .dash-grid { grid-template-columns: repeat(2, 1fr); } /* v4.0.0 Mobile Grid */
+            .dash-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+            .stat-card { padding: 16px; }
+            .stat-value { font-size: 22px; }
+            .modal-card { max-height: 85vh; border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom, 20px); }
+            .item-subtitle { white-space: normal; overflow: visible; text-overflow: clip; }
+        }
+
+        @media (max-width: 480px) {
+            .dash-grid { grid-template-columns: 1fr; }
+            .schedule-row { flex-direction: column; align-items: stretch; gap: 8px; }
+            .schedule-row select { width: 100%; flex: none; }
+            .schedule-row input { width: 48%; flex: none; }
+            .schedule-row .time-group { display: flex; justify-content: space-between; gap: 8px; }
+            .schedule-row button { width: 100%; padding: 12px; }
         }
 
         .list-header { text-transform: uppercase; font-size: 13px; font-weight: 500; color: var(--text-secondary); padding: 0 16px 8px 16px; letter-spacing: 0.02em; }
@@ -110,21 +125,21 @@
         .card-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 0.5px solid var(--separator); transition: background-color 0.15s; }
         .card-item:last-child { border-bottom: none; }
         .card-item:active { background-color: var(--fill-tertiary); }
-        .item-info { flex: 1; min-width: 0; }
+        .item-info { flex: 1; min-width: 0; margin-right: 12px; }
         .item-title { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
         .item-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .item-chevron { color: var(--text-tertiary); margin-left: 8px; }
+        .item-chevron { color: var(--text-tertiary); margin-left: 8px; flex-shrink: 0; }
 
         .superseded { opacity: 0.5; }
-        .superseded-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; }
-        .infra-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-blue); background: rgba(0, 122, 255, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; display: flex; align-items: center; gap: 4px; }
+        .superseded-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-orange); background: rgba(255, 149, 0, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; flex-shrink: 0; }
+        .infra-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-blue); background: rgba(0, 122, 255, 0.1); padding: 4px 8px; border-radius: 6px; margin-left: auto; margin-right: 8px; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
         .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
         .stat-card { background: var(--bg-color-elevated); padding: 20px; border-radius: var(--radius-card); box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
         .stat-label { color: var(--text-secondary); font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
         .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
 
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .status-online { background-color: var(--accent-green); }
         .status-offline { background-color: var(--text-tertiary); }
         .status-blocked { background-color: var(--accent-red); }
@@ -147,7 +162,7 @@
         @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
         .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-top: 8px; }
-        .sheet-close { background: var(--fill-tertiary); color: var(--text-secondary); width: 30px; height: 30px; border-radius: 50%; border: none; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+        .sheet-close { background: var(--fill-tertiary); color: var(--text-secondary); width: 30px; height: 30px; border-radius: 50%; border: none; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .form-group { margin-bottom: 24px; }
         .form-label { display: block; text-transform: uppercase; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; padding-left: 4px; }
         .helper-text { font-size: 12px; color: var(--text-secondary); margin-top: 4px; padding-left: 4px; }
@@ -444,7 +459,7 @@
                         let actualMode = d.policy ? d.policy.mode : 'GLOBAL';
                         if (globalPolicy.enabled) actualMode = globalPolicy.mode;
                         if (d.paused) actualMode = 'BLOCK_ALWAYS'; 
-                        if (d.is_infrastructure) actualMode = 'ALLOW_ALWAYS'; // Override UI status
+                        if (d.is_infrastructure) actualMode = 'ALLOW_ALWAYS'; 
                         
                         let statusColor = 'status-online';
                         let statusText = 'Allowed';
@@ -540,7 +555,7 @@
                 content.innerHTML = `
                     <div class="form-group">
                         <label class="form-label">Friendly Name</label>
-                        <input type="text" id="dev-friendly" value="${dev.friendly_name || ''}" placeholder="Add a custom name" ${isInfra ? 'disabled' : ''}>
+                        <input type="text" id="dev-friendly" value="${dev.friendly_name || ''}" placeholder="Add a custom name">
                     </div>
                     <div class="form-group">
                         <label class="form-label">MAC Address</label>
@@ -558,7 +573,7 @@
                                 <div class="item-subtitle">Bypasses all global & scheduled rules.</div>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" id="dev-infra" ${isInfra?'checked':''} onchange="saveDeviceInfrastructure('${dev.mac}', this.checked)">
+                                <input type="checkbox" id="dev-infra" ${isInfra?'checked':''} onchange="toggleInfraUI(this.checked)">
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -583,22 +598,34 @@
                         </div>
                     </div>
                     
-                    <button class="btn-primary" style="margin-top: 24px;" onclick="saveDeviceChanges('${dev.mac}')" ${isInfra ? 'disabled' : ''}>Save Changes</button>
-                    <button class="btn-danger" onclick="deleteDevice('${dev.mac}')" ${isInfra ? 'disabled' : ''}>Delete Device</button>
+                    <button class="btn-primary" style="margin-top: 24px;" onclick="saveDeviceChanges('${dev.mac}')">Save Changes</button>
+                    <button class="btn-danger" onclick="deleteDevice('${dev.mac}')">Delete Device</button>
                 `;
                 if (schedules.length > 0) { schedules.forEach(s => addDeviceScheduleRow(s)); }
                 if (policy.mode === 'SCHEDULE_BLOCK' || policy.mode === 'SCHEDULE_ALLOW') { document.getElementById('dev-schedule-editor').classList.remove('hidden'); if (schedules.length === 0) addDeviceScheduleRow(); }
             } catch (err) { content.innerHTML = `<div class="error-text">${err.message}</div>`; }
         }
 
+        function toggleInfraUI(isInfra) {
+            const section = document.getElementById('dev-policy-section');
+            const modeSelect = document.getElementById('dev-mode');
+            if (isInfra) {
+                section.classList.add('superseded');
+                if(modeSelect) modeSelect.disabled = true;
+            } else {
+                section.classList.remove('superseded');
+                if(modeSelect) modeSelect.disabled = false;
+            }
+        }
+
         async function saveDeviceInfrastructure(mac, enabled) {
             try {
                 await api('POST', `/api/devices/${mac}/infrastructure`, { enabled: enabled });
-                // Re-render the modal to lock/unlock fields
-                await openDeviceModal(mac);
             } catch (err) { 
                 showAlert('Error', err.message); 
-                await openDeviceModal(mac);
+                // Revert toggle on failure
+                document.getElementById('dev-infra').checked = !enabled;
+                toggleInfraUI(!enabled);
             }
         }
 
@@ -608,21 +635,45 @@
         }
         function addDeviceScheduleRow(s = null) {
             const list = document.getElementById('dev-schedules-list'); if (!list) return; const div = document.createElement('div'); div.className = 'schedule-row';
-            div.innerHTML = `<select class="sched-day">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d,i) => `<option value="${i}" ${s && s.day_of_week===i?'selected':''}>${d}</option>`).join('')}</select><input type="time" class="sched-start" value="${s ? s.start_time : '08:00'}"><input type="time" class="sched-end" value="${s ? s.end_time : '17:00'}"><button class="btn-secondary" onclick="this.parentNode.remove()" style="padding: 10px 12px;">✕</button>`;
+            div.innerHTML = `<select class="sched-day">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d,i) => `<option value="${i}" ${s && s.day_of_week===i?'selected':''}>${d}</option>`).join('')}</select><div class="time-group"><input type="time" class="sched-start" value="${s ? s.start_time : '08:00'}"><input type="time" class="sched-end" value="${s ? s.end_time : '17:00'}"></div><button class="btn-secondary" onclick="this.parentNode.remove()" style="padding: 10px 12px;">✕</button>`;
             list.appendChild(div);
         }
         async function saveDeviceChanges(mac) {
-            const friendly = document.getElementById('dev-friendly').value; const mode = document.getElementById('dev-mode').value;
+            const friendly = document.getElementById('dev-friendly').value;
+            const isInfra = document.getElementById('dev-infra').checked;
+            
             try {
+                // Save friendly name always
                 if (friendly !== '') await api('PUT', `/api/devices/${mac}`, { friendly_name: friendly });
-                await api('PUT', `/api/policies/${mac}`, { mode: mode, enabled: true });
-                if (mode === 'SCHEDULE_BLOCK' || mode === 'SCHEDULE_ALLOW') {
-                    const existing = await api('GET', `/api/policies/${mac}/schedules`); for (const s of existing) { await api('DELETE', `/api/schedules/${s.id}`); }
-                    const rows = document.querySelectorAll('#dev-schedules-list .schedule-row');
-                    for (const row of rows) { const day = row.querySelector('.sched-day').value; const start = row.querySelector('.sched-start').value; const end = row.querySelector('.sched-end').value; if (start && end) { await api('POST', `/api/policies/${mac}/schedules`, { day_of_week: parseInt(day), start_time: start, end_time: end, enabled: true }); } }
+                
+                // Save infrastructure state
+                await saveDeviceInfrastructure(mac, isInfra);
+                
+                // Only save policy if not infrastructure
+                if (!isInfra) {
+                    const mode = document.getElementById('dev-mode').value;
+                    await api('PUT', `/api/policies/${mac}`, { mode: mode, enabled: true });
+                    
+                    if (mode === 'SCHEDULE_BLOCK' || mode === 'SCHEDULE_ALLOW') {
+                        const existing = await api('GET', `/api/policies/${mac}/schedules`); 
+                        for (const s of existing) { await api('DELETE', `/api/schedules/${s.id}`); }
+                        const rows = document.querySelectorAll('#dev-schedules-list .schedule-row');
+                        for (const row of rows) { 
+                            const day = row.querySelector('.sched-day').value; 
+                            const start = row.querySelector('.sched-start').value; 
+                            const end = row.querySelector('.sched-end').value; 
+                            if (start && end) { 
+                                await api('POST', `/api/policies/${mac}/schedules`, { day_of_week: parseInt(day), start_time: start, end_time: end, enabled: true }); 
+                            } 
+                        }
+                    }
                 }
-                closeModal(); await renderView();
-            } catch (err) { showAlert('Save Failed', err.message); }
+                
+                closeModal(); 
+                await renderView();
+            } catch (err) { 
+                showAlert('Save Failed', err.message); 
+            }
         }
         async function deleteDevice(mac) {
             showConfirm('Delete Device', 'Are you sure you want to delete this device and its rules?', async () => {
@@ -664,7 +715,7 @@
         }
         function addGlobalScheduleRow(s = null) {
             const list = document.getElementById('schedules-list'); if (!list) return; const div = document.createElement('div'); div.className = 'schedule-row';
-            div.innerHTML = `<select class="sched-day">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d,i) => `<option value="${i}" ${s && s.day_of_week===i?'selected':''}>${d}</option>`).join('')}</select><input type="time" class="sched-start" value="${s ? s.start_time : '08:00'}"><input type="time" class="sched-end" value="${s ? s.end_time : '17:00'}"><button class="btn-secondary" onclick="this.parentNode.remove()" style="padding: 10px 12px;">✕</button>`;
+            div.innerHTML = `<select class="sched-day">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d,i) => `<option value="${i}" ${s && s.day_of_week===i?'selected':''}>${d}</option>`).join('')}</select><div class="time-group"><input type="time" class="sched-start" value="${s ? s.start_time : '08:00'}"><input type="time" class="sched-end" value="${s ? s.end_time : '17:00'}"></div><button class="btn-secondary" onclick="this.parentNode.remove()" style="padding: 10px 12px;">✕</button>`;
             list.appendChild(div);
         }
         
