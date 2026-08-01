@@ -1,7 +1,6 @@
 // Package discovery (merge.go) contains the Merge Engine.
-// It takes observations from multiple providers and combines them
-// into a single canonical device record, strictly adhering to
-// source priority and confidence scoring.
+// v3.1.0: Updated to handle IP-only observations by cross-referencing
+// them with MACs discovered by Netlink/Nmap.
 package discovery
 
 import (
@@ -17,7 +16,7 @@ type Observation struct {
     Hostname   string
     Vendor     string
     OS         string
-    Services   string // JSON string or comma-separated list
+    Services   string
     SourceName string
     Confidence int
 }
@@ -31,21 +30,36 @@ func NewMergeEngine() *MergeEngine {
 }
 
 // Merge takes a slice of observations and merges them by MAC address.
-// It returns a map of MAC -> DeviceObservation ready for database upsert.
 func (m *MergeEngine) Merge(observations []Observation) map[string]database.DeviceObservation {
     merged := make(map[string]database.DeviceObservation)
     sourcesMap := make(map[string]map[string]bool) // mac -> source -> true
-
-    // Helper to track max confidence per MAC
     maxConfidence := make(map[string]int)
 
+    // 1. Build an IP -> MAC lookup table from high-confidence MAC sources (Netlink, Nmap, DHCP)
+    ipToMAC := make(map[string]string)
+    for _, obs := range observations {
+        if obs.MAC != "" && obs.IP != "" {
+            // Prioritize Nmap/Netlink MACs
+            if _, exists := ipToMAC[obs.IP]; !exists || obs.SourceName == "nmap" || obs.SourceName == "netlink" {
+                ipToMAC[obs.IP] = database.NormalizeMAC(obs.MAC)
+            }
+        }
+    }
+
+    // 2. Merge all observations
     for _, obs := range observations {
         mac := database.NormalizeMAC(obs.MAC)
+        
+        // If this observation doesn't have a MAC, try to find it via IP
+        if mac == "" && obs.IP != "" {
+            mac = ipToMAC[obs.IP]
+        }
+
+        // If we still don't have a MAC, we can't track it in our DB (ignore it)
         if mac == "" {
             continue
         }
 
-        // Track sources
         if sourcesMap[mac] == nil {
             sourcesMap[mac] = make(map[string]bool)
         }
@@ -73,19 +87,20 @@ func (m *MergeEngine) Merge(observations []Observation) map[string]database.Devi
                 dev.Hostname = obs.Hostname
             }
 
-            // Vendor/OS/Services: Overwrite if not empty (Nmap usually wins here if run)
+            // Vendor/OS: Overwrite if not empty (Nmap usually wins here)
             if obs.Vendor != "" {
                 dev.Vendor = obs.Vendor
             }
             if obs.OS != "" {
                 dev.OS = obs.OS
             }
+            
+            // Services: Append unique services
             if obs.Services != "" {
-                // Simple append for services if from different sources, or overwrite if Nmap
-                if obs.SourceName == "nmap" {
+                if dev.Services == "" {
                     dev.Services = obs.Services
-                } else if dev.Services == "" {
-                    dev.Services = obs.Services
+                } else if !strings.Contains(dev.Services, obs.Services) {
+                    dev.Services = dev.Services + "," + obs.Services
                 }
             }
 
