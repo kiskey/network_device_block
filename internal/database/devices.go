@@ -21,7 +21,7 @@ type DeviceObservation struct {
 }
 
 // UpsertDevice inserts or updates a device record based on MAC address.
-// v3.2.0: Fixed logic to prevent overwriting known intelligence with empty/generic data.
+// v4.0.0: Ensures is_infrastructure is preserved and never overwritten by discovery.
 func (d *DB) UpsertDevice(obs DeviceObservation) error {
     mac := NormalizeMAC(obs.MAC)
     if mac == "" {
@@ -34,9 +34,9 @@ func (d *DB) UpsertDevice(obs DeviceObservation) error {
         INSERT INTO devices (
             mac, hostname, friendly_name, vendor, current_ip, online, paused, 
             first_seen, last_seen, device_type, manufacturer, os, services, 
-            discovery_sources, confidence
+            discovery_sources, confidence, is_infrastructure
         ) 
-        VALUES (?, ?, '', ?, ?, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, '', ?, ?, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         ON CONFLICT(mac) DO UPDATE SET
             current_ip = CASE WHEN excluded.current_ip != '' THEN excluded.current_ip ELSE devices.current_ip END,
             online = 1,
@@ -70,15 +70,15 @@ func (d *DB) GetDevice(mac string) (*Device, error) {
     mac = NormalizeMAC(mac)
     row := d.db.QueryRow(`
         SELECT mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen,
-               device_type, manufacturer, os, services, discovery_sources, confidence
+               device_type, manufacturer, os, services, discovery_sources, confidence, is_infrastructure
         FROM devices WHERE mac = ?
     `, mac)
 
     var dev Device
-    var onlineInt, pausedInt int
+    var onlineInt, pausedInt, infraInt int
     err := row.Scan(
         &dev.MAC, &dev.Hostname, &dev.FriendlyName, &dev.Vendor, &dev.CurrentIP, &onlineInt, &pausedInt, &dev.FirstSeen, &dev.LastSeen,
-        &dev.DeviceType, &dev.Manufacturer, &dev.OS, &dev.Services, &dev.DiscoverySources, &dev.Confidence,
+        &dev.DeviceType, &dev.Manufacturer, &dev.OS, &dev.Services, &dev.DiscoverySources, &dev.Confidence, &infraInt,
     )
     if err != nil {
         if err == sql.ErrNoRows {
@@ -88,6 +88,7 @@ func (d *DB) GetDevice(mac string) (*Device, error) {
     }
     dev.Online = onlineInt == 1
     dev.Paused = pausedInt == 1
+    dev.IsInfrastructure = infraInt == 1
     return &dev, nil
 }
 
@@ -95,7 +96,7 @@ func (d *DB) GetDevice(mac string) (*Device, error) {
 func (d *DB) GetAllDevices() ([]Device, error) {
     rows, err := d.db.Query(`
         SELECT mac, hostname, friendly_name, vendor, current_ip, online, paused, first_seen, last_seen,
-               device_type, manufacturer, os, services, discovery_sources, confidence
+               device_type, manufacturer, os, services, discovery_sources, confidence, is_infrastructure
         FROM devices ORDER BY online DESC, last_seen DESC
     `)
     if err != nil {
@@ -106,15 +107,16 @@ func (d *DB) GetAllDevices() ([]Device, error) {
     devices := make([]Device, 0)
     for rows.Next() {
         var dev Device
-        var onlineInt, pausedInt int
+        var onlineInt, pausedInt, infraInt int
         if err := rows.Scan(
             &dev.MAC, &dev.Hostname, &dev.FriendlyName, &dev.Vendor, &dev.CurrentIP, &onlineInt, &pausedInt, &dev.FirstSeen, &dev.LastSeen,
-            &dev.DeviceType, &dev.Manufacturer, &dev.OS, &dev.Services, &dev.DiscoverySources, &dev.Confidence,
+            &dev.DeviceType, &dev.Manufacturer, &dev.OS, &dev.Services, &dev.DiscoverySources, &dev.Confidence, &infraInt,
         ); err != nil {
             return nil, fmt.Errorf("scan device: %w", err)
         }
         dev.Online = onlineInt == 1
         dev.Paused = pausedInt == 1
+        dev.IsInfrastructure = infraInt == 1
         devices = append(devices, dev)
     }
     return devices, nil
@@ -132,6 +134,14 @@ func (d *DB) SetDevicePaused(mac string, paused bool) error {
     mac = NormalizeMAC(mac)
     pausedInt := boolToInt(paused)
     _, err := d.db.Exec(`UPDATE devices SET paused = ? WHERE mac = ?`, pausedInt, mac)
+    return err
+}
+
+// v4.0.0: SetDeviceInfrastructure updates the immutable infrastructure flag.
+func (d *DB) SetDeviceInfrastructure(mac string, isInfra bool) error {
+    mac = NormalizeMAC(mac)
+    infraInt := boolToInt(isInfra)
+    _, err := d.db.Exec(`UPDATE devices SET is_infrastructure = ? WHERE mac = ?`, infraInt, mac)
     return err
 }
 
