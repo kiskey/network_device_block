@@ -34,11 +34,11 @@ type NmapXML struct {
 }
 
 type NmapHost struct {
-    Status   NmapStatus   `xml:"status"`
+    Status    NmapStatus    `xml:"status"`
     Addresses []NmapAddress `xml:"address"`
     Hostnames NmapHostnames `xml:"hostnames"`
-    OS       NmapOS       `xml:"os"`
-    Ports    NmapPorts    `xml:"ports"`
+    OS        NmapOS        `xml:"os"`
+    Ports     NmapPorts     `xml:"ports"`
 }
 
 type NmapStatus struct {
@@ -86,7 +86,8 @@ type NmapPort struct {
 
 // Discover executes the nmap command and parses the results.
 func (p *NmapProvider) Discover() ([]Observation, error) {
-    enabled, _ := p.db.GetBoolSetting("nmap_enabled", true)
+    // Fix: GetBoolSetting returns only 1 value
+    enabled := p.db.GetBoolSetting("nmap_enabled", true)
     if !enabled {
         return nil, nil
     }
