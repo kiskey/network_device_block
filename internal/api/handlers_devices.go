@@ -93,7 +93,6 @@ func (s *Server) handleDeleteDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleToggleDevice processes POST /api/devices/{mac}/toggle
-// v3.0.0: Uses the new DeviceObservation struct for UpsertDevice
 func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
     mac := normalizeMAC(r.PathValue("mac"))
     if mac == "" {
@@ -103,7 +102,6 @@ func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
 
     dev, _ := s.db.GetDevice(mac)
     if dev == nil {
-        // Create a minimal observation to upsert the device if it doesn't exist
         obs := database.DeviceObservation{
             MAC:        mac,
             Hostname:   "Unknown Device",
@@ -116,7 +114,12 @@ func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
         dev, _ = s.db.GetDevice(mac)
     }
 
-    // Invert paused state
+    // Prevent pausing infrastructure devices
+    if dev.IsInfrastructure {
+        writeError(w, http.StatusBadRequest, "Cannot pause an infrastructure device")
+        return
+    }
+
     newPaused := !dev.Paused
     if err := s.db.SetDevicePaused(mac, newPaused); err != nil {
         writeError(w, http.StatusInternalServerError, "Failed to toggle pause state")
@@ -132,4 +135,46 @@ func (s *Server) handleToggleDevice(w http.ResponseWriter, r *http.Request) {
     s.db.InsertLog(database.LogCategoryManualToggle, action, mac, "")
 
     writeJSON(w, http.StatusOK, map[string]bool{"paused": newPaused})
+}
+
+// v4.0.0: handleToggleInfrastructure processes POST /api/devices/{mac}/infrastructure
+func (s *Server) handleToggleInfrastructure(w http.ResponseWriter, r *http.Request) {
+    mac := normalizeMAC(r.PathValue("mac"))
+    if mac == "" {
+        writeError(w, http.StatusBadRequest, "Invalid MAC address")
+        return
+    }
+
+    var payload struct {
+        Enabled bool `json:"enabled"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+        // If body is empty, just toggle the existing state
+        dev, _ := s.db.GetDevice(mac)
+        if dev == nil {
+            writeError(w, http.StatusNotFound, "Device not found")
+            return
+        }
+        payload.Enabled = !dev.IsInfrastructure
+    }
+
+    if err := s.db.SetDeviceInfrastructure(mac, payload.Enabled); err != nil {
+        writeError(w, http.StatusInternalServerError, "Failed to update infrastructure status")
+        return
+    }
+
+    // If we just made it infrastructure, ensure it's not left in a paused state
+    if payload.Enabled {
+        _ = s.db.SetDevicePaused(mac, false)
+    }
+
+    s.applyPoliciesImmediately()
+
+    action := "Removed from Infrastructure (Never Block) zone"
+    if payload.Enabled {
+        action = "Added to Infrastructure (Never Block) zone"
+    }
+    s.db.InsertLog(database.LogCategoryPolicyChanged, action, mac, "")
+
+    writeJSON(w, http.StatusOK, map[string]bool{"is_infrastructure": payload.Enabled})
 }
